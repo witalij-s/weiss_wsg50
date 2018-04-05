@@ -139,7 +139,11 @@ int cmd_submit( unsigned char id, unsigned char *payload, unsigned int len,
 	// Reuse message struct to receive response
 	memset( &msg, 0, sizeof( msg ) );
 
-	// Receive response. Repeat if pending.
+	// Whether the response to-be-received is the result of an older pending command
+	bool is_async_resp = false;
+
+	// Receive response. 
+	// Repeat if pending or if an old ack of an asynchronous cmd pops up instead of the expected response
 	do
 	{
 		// Free response
@@ -153,8 +157,12 @@ int cmd_submit( unsigned char id, unsigned char *payload, unsigned int len,
 			return -1;
 		}
 
+		// Identifies a reponse to and old asynchronous command when the msg id is unexpected 
+		// and equivalent to one of the known asynchronous commands (homing, pre-position, grip and release)
+		is_async_resp = msg.id != id && (msg.id == 0x20 || msg.id == 0x21 || msg.id == 0x25 || msg.id == 0x26);
+
 		// Check response ID
-		if ( msg.id != id )
+		if ( msg.id != id && !is_async_resp)
 		{
 			fprintf( stderr, "Response ID (%2x) does not match submitted command ID (%2x)\n", msg.id, id );
 			return -1;
@@ -171,7 +179,7 @@ int cmd_submit( unsigned char id, unsigned char *payload, unsigned int len,
 			status = (status_t) make_short( msg.data[0], msg.data[1] );
 		}
 	}
-	while( pending && status == E_CMD_PENDING );
+	while( pending && status == E_CMD_PENDING || is_async_resp);
 
 
 	// Return payload

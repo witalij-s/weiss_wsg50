@@ -108,7 +108,7 @@ int homing( void )
 	payload[0] = 0x00;
 
 	// Submit command and wait for response. Push result to stack.
-	res = cmd_submit( 0x20, payload, 1, true, &resp, &resp_len );
+	res = cmd_submit( 0x20, payload, 1, false, &resp, &resp_len );
 	if ( res != 2 )
 	{
 		dbgPrint( "Response payload length doesn't match (is %d, expected 2)\n", res );
@@ -122,7 +122,7 @@ int homing( void )
 	// Check response status
 	status = cmd_get_response_status( resp );
 	free( resp );
-	if ( status != E_SUCCESS )
+	if (status != E_SUCCESS && status != E_CMD_PENDING)
 	{
 		dbgPrint( "Command HOMING not successful: %s\n", status_to_str( status ) );
 		return -1;
@@ -154,7 +154,7 @@ int move( float width, float speed, bool stop_on_block, bool ignore_response)
 
     if (!ignore_response) {
         // Submit command and wait for response. Push result to stack.
-        res = cmd_submit( 0x21, payload, 9, true, &resp, &resp_len );
+        res = cmd_submit( 0x21, payload, 9, false, &resp, &resp_len );
         if ( res != 2 )
         {
             dbgPrint( "Response payload length doesn't match (is %d, expected 2)\n", res );
@@ -165,7 +165,7 @@ int move( float width, float speed, bool stop_on_block, bool ignore_response)
         // Check response status
         status = cmd_get_response_status( resp );
         free( resp );
-        if ( status != E_SUCCESS )
+        if (status != E_SUCCESS && status != E_CMD_PENDING)
         {
             dbgPrint( "Command MOVE not successful: %s\n", status_to_str( status ) );
             return -1;
@@ -276,7 +276,7 @@ int grasp( float objWidth, float speed )
 	memcpy( &payload[4], &speed, sizeof( float ) );
 
 	// Submit command and wait for response. Push result to stack.
-	res = cmd_submit( 0x25, payload, 8, true, &resp, &resp_len );
+	res = cmd_submit( 0x25, payload, 8, false, &resp, &resp_len );
 	if ( res != 2 )
 	{
 		dbgPrint( "Response payload length doesn't match (is %d, expected 2)\n", res );
@@ -287,7 +287,7 @@ int grasp( float objWidth, float speed )
 	// Check response status
 	status = cmd_get_response_status( resp );
 	free( resp );
-	if ( status != E_SUCCESS )
+	if (status != E_SUCCESS && status != E_CMD_PENDING)
 	{
 		dbgPrint( "Command GRASP not successful: %s\n", status_to_str( status ) );
 		return -1;
@@ -310,7 +310,7 @@ int release( float width, float speed )
 	memcpy( &payload[4], &speed, sizeof( float ) );
 
 	// Submit command and wait for response. Push result to stack.
-	res = cmd_submit( 0x26, payload, 8, true, &resp, &resp_len );
+	res = cmd_submit( 0x26, payload, 8, false, &resp, &resp_len );
 	if ( res != 2 )
 	{
 		dbgPrint( "Response payload length doesn't match (is %d, expected 2)\n", res );
@@ -321,7 +321,7 @@ int release( float width, float speed )
 	// Check response status
 	status = cmd_get_response_status( resp );
 	free( resp );
-	if ( status != E_SUCCESS )
+	if (status != E_SUCCESS && status != E_CMD_PENDING)
 	{
 		dbgPrint( "Command RELEASE not successful: %s\n", status_to_str( status ) );
 		return -1;
