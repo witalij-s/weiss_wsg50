@@ -145,7 +145,7 @@ bool moveSrv(wsg50_common::Move::Request &req, wsg50_common::Move::Response &res
         res.error = move(req.width, req.speed, false);
     }
 
-    ROS_INFO("Target position reached.");
+    //ROS_INFO("Target position reached.");
     return true;
 }
 
