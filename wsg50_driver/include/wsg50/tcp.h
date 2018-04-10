@@ -39,7 +39,6 @@
 #else
 	#include <unistd.h>
 	#include <sys/types.h>
-	#include <sys/socket.h>
 	#include <sys/ioctl.h>
 	#include <sys/select.h>
 	#include <arpa/inet.h>
@@ -85,6 +84,7 @@ int tcp_open( const void *params );
 void tcp_close( void );
 int tcp_read( unsigned char *buf, unsigned int len );
 int tcp_write( unsigned char *buf, unsigned int len );
+int tcp_make_nonblock( unsigned char en );
 
 
 #ifdef __cplusplus

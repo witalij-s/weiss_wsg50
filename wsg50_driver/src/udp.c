@@ -76,7 +76,8 @@ const interface_t udp =
 	.open = &udp_open,
 	.close = &udp_close,
 	.read = &udp_read,
-	.write = &udp_write
+	.write = &udp_write,
+    .make_nonblock = &udp_make_nonblock
 };
 
 static udp_conn_t conn;
@@ -265,4 +266,10 @@ int udp_write( unsigned char *buf, unsigned int len )
 	res = sendto( conn.sock, buf, len, 0, (struct sockaddr *) &conn.si_server, (socklen_t) slen );
     if ( res >= 0 ) return res;
     else return -1;
+}
+
+
+int udp_make_nonblock( unsigned char en ) {
+    // to be implemented if needed
+    return -1;
 }

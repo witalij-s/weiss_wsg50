@@ -89,6 +89,8 @@ int g_timer_cnt = 0, g_size;
 bool g_ismoving = false, g_mode_script = false, g_mode_periodic = false, g_mode_polling = false;
 float g_goal_position = NAN, g_goal_speed = NAN, g_speed = 10.0;
 
+bool block_comm;
+
 //------------------------------------------------------------------------
 // Unit testing
 //------------------------------------------------------------------------
@@ -134,8 +136,22 @@ void publish_status_and_joint_states(gripper_response info) {
 bool moveSrv(wsg50_common::Move::Request &req, wsg50_common::Move::Response &res)
 {
     if ( (req.width >= 0.0 && req.width <= g_size) && (req.speed > 0.0 && req.speed <= 420.0) ) {
-        ROS_INFO("Moving to %f position at %f mm/s.", req.width, req.speed);
-        res.error = move(req.width, req.speed, false);
+        if (move_async(req.width, req.speed, false) == 0) {
+            ROS_INFO("Moving to %f position at %f mm/s.", req.width, req.speed);
+            block_comm = true;
+            status_t status;
+            do {
+                res.error = move_recv_ack(&status);
+                ros::spinOnce();
+            }
+            while (status == E_CMD_PENDING);
+            block_comm = false; 
+        }else {
+            ROS_ERROR("Failed to send Moving Command");
+            res.error = 255;
+            return false;
+        }
+ 
     } else if (req.width < 0.0 || req.width > g_size) {
         ROS_ERROR("Imposible to move to this position. (Width values: [0.0 - %d] ", g_size);
         res.error = 255;
@@ -145,7 +161,7 @@ bool moveSrv(wsg50_common::Move::Request &req, wsg50_common::Move::Response &res
         res.error = move(req.width, req.speed, false);
     }
 
-    //ROS_INFO("Target position reached.");
+    ROS_INFO("Target position reached.");
     return true;
 }
 
@@ -295,7 +311,7 @@ void timer_cb(const ros::TimerEvent& ev)
     info.acceleration = 0.0;
     info.speed = 0.0;
 
-    if (g_mode_polling) {
+    if (g_mode_polling && !block_comm) {
         const char * state = systemState();
         if (!state)
             return;
@@ -508,6 +524,7 @@ int main( int argc, char **argv )
     ros::init(argc, argv, "wsg50");
     ros::NodeHandle nh("~");
     signal(SIGINT, sigint_handler);
+    block_comm = false;
 
     component_status = nh.advertise<dnb_msgs::ComponentStatus>("component/status", 1, true);
     dnb_msgs::ComponentStatus cstatus_msg;
