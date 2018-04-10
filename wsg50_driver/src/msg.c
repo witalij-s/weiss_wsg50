@@ -153,6 +153,12 @@ int msg_receive( msg_t *msg )
 	return msg->len + 8;
 }
 
+int msg_receive_async( msg_t *msg ) {
+	interface->make_nonblock(1);
+	int res = msg_receive(msg);
+	interface->make_nonblock(0);
+	return res;
+}
 
 /**
  * Send command

@@ -51,6 +51,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <errno.h>
 
 #include "wsg50/interface.h"
 #include "wsg50/tcp.h"
@@ -77,7 +78,8 @@ const interface_t tcp =
 	.open = &tcp_open,
 	.close = &tcp_close,
 	.read = &tcp_read,
-	.write = &tcp_write
+	.write = &tcp_write,
+	.make_nonblock = &tcp_make_nonblock
 };
 
 static tcp_conn_t conn;
@@ -96,6 +98,24 @@ static tcp_conn_t conn;
 //------------------------------------------------------------------------
 // Function implementation
 //------------------------------------------------------------------------
+
+
+/**
+ * Change the socket into non-blocking state 
+ *
+ * @return 0 on sucess, else -1
+ */
+int tcp_make_nonblock(unsigned char en){
+	if (en == 1) {
+	    struct timeval timeout = { .tv_sec = 1, .tv_usec = 0 };
+    	return setsockopt( conn.sock, SOL_SOCKET, SO_RCVTIMEO, (void *) &timeout, (socklen_t) sizeof( struct timeval ) );                  
+	}
+	else {
+	    struct timeval timeout = { .tv_sec = TCP_RCV_TIMEOUT_SEC, .tv_usec = 0 };
+    	return setsockopt( conn.sock, SOL_SOCKET, SO_RCVTIMEO, (void *) &timeout, (socklen_t) sizeof( struct timeval ) );     
+	}
+}
+
 
 /**
  * Open TCP socket
@@ -123,6 +143,9 @@ int tcp_open( const void *params )
     conn.si_server.sin_family = AF_INET;
     conn.si_server.sin_port = htons( tcp->port );
     conn.si_server.sin_addr.s_addr = tcp->addr;
+
+    //make_nonblock(&conn.sock);
+
 
 	unsigned int val = 1024;
     setsockopt( conn.sock, SOL_SOCKET, SO_RCVBUF, (void *) &val, (socklen_t) sizeof( val ) );
@@ -167,8 +190,11 @@ int tcp_read( unsigned char *buf, unsigned int len )
 	res = recv( conn.sock, buf, len, 0 );
 	if ( res < 0 )
 	{
-		close( conn.sock );
-		quit( "Failed to read data from TCP socket\n" );
+	    printf("Failed to read data %s\n", strerror(errno));
+	    if (errno != ETIMEDOUT) {
+			close( conn.sock );
+			quit( "Failed to read data from TCP socket\n" );
+	    }
 	}
 
     return res;

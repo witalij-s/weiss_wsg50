@@ -88,7 +88,8 @@ const interface_t serial =
 	.open = &serial_open,
 	.close = &serial_close,
 	.read = &serial_read,
-	.write = &serial_write
+	.write = &serial_write,
+	.make_nonblock = serial_make_nonblock
 };
 
 #ifdef WIN32
@@ -262,4 +263,9 @@ int serial_write( unsigned char *buf, unsigned int len )
 	return( write( conn.fd, (void *) buf, len ) );
 }
 
+
+int serial_make_nonblock( unsigned char en ) {
+    // to be implemented if needed
+    return -1;
+}
 
