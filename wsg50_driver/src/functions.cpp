@@ -131,6 +131,23 @@ int homing( void )
 	return 0;
 }
 
+int homing_async ( void ) {
+	int res;
+	unsigned char payload[1];
+
+	// Set flags: Homing direction (0: default, 1: widthitive movement, 2: negative movement).
+	payload[0] = 0x00;
+
+    // Submit command
+    res = cmd_submit_async( 0x20, payload, 1);
+    if (res < 0) {
+        dbgPrint( "Failed to submit HOMING command\n");
+        return -1;
+    }
+
+	return 0;
+
+}
 
 /** \brief  Send move command (0x21) to gripper
  *  \param  ignore_response Do not read back response from gripper. (Must be read elsewhere, for auto update.)
@@ -184,12 +201,7 @@ int move( float width, float speed, bool stop_on_block, bool ignore_response)
 	return 0;
 }
 
-
-/** \brief  Send move command (0x21) to gripper
- *  \param  ignore_response Do not read back response from gripper. (Must be read elsewhere, for auto update.)
- */
-int move_async( float width, float speed, bool stop_on_block)
-{
+int move_async( float width, float speed, bool stop_on_block) {
 	int res;
 	unsigned char payload[9];
 
@@ -207,28 +219,6 @@ int move_async( float width, float speed, bool stop_on_block)
         dbgPrint( "Failed to submit move command\n");
         return -1;
     }
-
-	return 0;
-}
-
-int move_recv_ack(status_t *status)
-{
-	int res;
-	unsigned char *resp;
-	unsigned int resp_len;
-
-    // Receive response
-    res = cmd_recv_ack(0x21, &resp, &resp_len);
-
-    if ( res != 2 ){
-        dbgPrint( "Response payload length doesn't match (is %d, expected 2)\n", res );
-        if ( res > 0 ) free( resp );
-        return -1;
-    }
-
-    // Check response status
-    *status = cmd_get_response_status( resp );
-    free( resp );
 
 	return 0;
 }
@@ -347,6 +337,24 @@ int grasp( float objWidth, float speed )
 	return( 0 );
 }
 
+int grasp_async( float objWidth, float speed ) {
+	int res;
+	unsigned char payload[8];
+
+	// Copy part width and speed
+	memcpy( &payload[0], &objWidth, sizeof( float ) );
+	memcpy( &payload[4], &speed, sizeof( float ) );
+
+    // Submit command
+    res = cmd_submit_async( 0x25, payload, 8);
+    if (res < 0) {
+        dbgPrint( "Failed to submit GRASP command\n");
+        return -1;
+    }
+
+	return 0;
+}
+
 
 int release( float width, float speed )
 {
@@ -380,6 +388,52 @@ int release( float width, float speed )
 	}
 
 	return 0;
+}
+
+
+int release_async( float width, float speed ) {
+	int res;
+	unsigned char payload[8];
+
+	// Copy part width and speed
+	memcpy( &payload[0], &width, sizeof( float ) );
+	memcpy( &payload[4], &speed, sizeof( float ) );
+
+    // Submit command
+    res = cmd_submit_async( 0x26, payload, 8);
+    if (res < 0) {
+        dbgPrint( "Failed to submit RELEASE command\n");
+        return -1;
+    }
+
+	return 0;
+}
+
+
+// returns 0 when no msg available, 1 when msg is available and correct, -1 on error
+int recv_ack(unsigned char id, status_t *status) {
+	int res;
+	unsigned char *resp;
+	unsigned int resp_len;
+
+    // Receive response
+    res = cmd_recv_ack(id, &resp, &resp_len);
+
+    if ( res == 0 ) return 0;
+    if ( res < 0 ) return -1;
+
+
+    if ( resp_len > 0 && resp_len != 2 ){
+        dbgPrint( "Response payload length doesn't match (is %d, expected 2)\n", res );
+        free( resp );
+        return -1;
+    }
+
+    // Check response status
+    *status = cmd_get_response_status( resp );
+    free( resp );
+
+	return 1;
 }
 
 

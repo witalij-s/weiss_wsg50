@@ -135,52 +135,84 @@ void publish_status_and_joint_states(gripper_response info) {
 
 bool moveSrv(wsg50_common::Move::Request &req, wsg50_common::Move::Response &res)
 {
-    if ( (req.width >= 0.0 && req.width <= g_size) && (req.speed > 0.0 && req.speed <= 420.0) ) {
-        if (move_async(req.width, req.speed, false) == 0) {
-            ROS_INFO("Moving to %f position at %f mm/s.", req.width, req.speed);
-            block_comm = true;
-            status_t status;
-            do {
-                res.error = move_recv_ack(&status);
-                ros::spinOnce();
-            }
-            while (status == E_CMD_PENDING);
-            block_comm = false; 
-        }else {
-            ROS_ERROR("Failed to send Moving Command");
-            res.error = 255;
-            return false;
-        }
- 
-    } else if (req.width < 0.0 || req.width > g_size) {
+    if (req.width < 0.0 || req.width > g_size) {
         ROS_ERROR("Imposible to move to this position. (Width values: [0.0 - %d] ", g_size);
         res.error = 255;
         return false;
-    } else {
-        ROS_WARN("Speed values are outside the gripper's physical limits ([0.1 - 420.0])  Using clamped values.");
-        res.error = move(req.width, req.speed, false);
     }
 
-    ROS_INFO("Target position reached.");
+    if ( req.speed < 0.0 || req.speed > 420.0 ) {
+        ROS_WARN("Speed values are outside the gripper's physical limits ([0.1 - 420.0])  Using clamped values.");
+    }
+
+    // Moving asnchronously while spinning to check for stop command
+    if (move_async(req.width, req.speed, false) == 0) {
+        ROS_INFO("Moving to %f position at %f mm/s.", req.width, req.speed);
+        block_comm = true;
+
+        status_t status;
+        int msg_available = 0; // 0 when no msg available, 1 when msg is available and correct, -1 on error
+        do {
+            msg_available = recv_ack(0x21, &status);
+            ros::spinOnce();
+        }
+        while (msg_available == 0 || (msg_available == 1 && status == E_CMD_PENDING));
+
+        block_comm = false;
+
+        res.error = msg_available == 1? (status == E_SUCCESS? 0 : 255) : 255;
+        if (res.error == 0) {
+            ROS_INFO("Target position reached");
+        } else {
+            ROS_INFO("Failed to reach target position : %s", status_to_str(status));
+        }
+    }else {
+        res.error = 255;
+        return false;
+    }
+
     return true;
 }
 
 bool graspSrv(wsg50_common::Move::Request &req, wsg50_common::Move::Response &res)
 {
-    if ( (req.width >= 0.0 && req.width <= g_size) && (req.speed > 0.0 && req.speed <= 420.0) ) {
-        ROS_INFO("Grasping object at %f with %f mm/s.", req.width, req.speed);
-        res.error = grasp(req.width, req.speed);
-    } else if (req.width < 0.0 || req.width > g_size) {
+    if (req.width < 0.0 || req.width > g_size) {
         ROS_ERROR("Imposible to move to this position. (Width values: [0.0 - %d] ", g_size);
         res.error = 255;
         return false;
-    } else {
-        ROS_WARN("Speed or position values are outside the gripper's physical limits (Position: [0.0 - %d] / Speed: [0.1 - 420.0])  Using clamped values.", g_size);
-        res.error = grasp(req.width, req.speed);
     }
 
-    ROS_INFO("Object grasped correctly.");
-    objectGraspped=true;
+    if ( req.speed < 0.0 || req.speed > 420.0 ) {
+        ROS_WARN("Speed values are outside the gripper's physical limits ([0.1 - 420.0])  Using clamped values.");
+    }
+
+    // Moving asnchronously while spinning to check for stop command
+    if (grasp_async(req.width, req.speed) == 0) {
+        ROS_INFO("Grasping object at %f with %f mm/s.", req.width, req.speed);
+        block_comm = true;
+
+        status_t status;
+        int msg_available = 0; // 0 when no msg available, 1 when msg is available and correct, -1 on error
+        do {
+            msg_available = recv_ack(0x25, &status);
+            ros::spinOnce();
+        }
+        while (msg_available == 0 || (msg_available == 1 && status == E_CMD_PENDING));
+
+        block_comm = false;
+
+        res.error = msg_available == 1? (status == E_SUCCESS? 0 : 255) : 255;
+        if (res.error == 0) {
+            ROS_INFO("Object grasped correctly.");
+            objectGraspped=true;
+        } else {
+            ROS_INFO("Failed to grasp object : %s", status_to_str(status));
+        }
+    }else {
+        res.error = 255;
+        return false;
+    }
+
     return true;
 }
 
@@ -227,28 +259,143 @@ bool incrementSrv(wsg50_common::Incr::Request &req, wsg50_common::Incr::Response
     return true;
 }
 
-bool releaseSrv(wsg50_common::Move::Request &req, wsg50_common::Move::Response &res)
+bool incrementSrv2(wsg50_common::Incr::Request &req, wsg50_common::Incr::Response &res)
 {
-    if ( (req.width >= 0.0 && req.width <= g_size) && (req.speed > 0.0 && req.speed <= 420.0) ) {
-        ROS_INFO("Releasing to %f position at %f mm/s.", req.width, req.speed);
-        res.error = release(req.width, req.speed);
-    } else if (req.width < 0.0 || req.width > g_size) {
-        ROS_ERROR("Imposible to move to this position. (Width values: [0.0 - g_size] ");
+    if (!objectGraspped) {
+        float currentWidth, nextWidth, speed; 
+        if (req.direction == "open") {  
+            currentWidth = getOpening();  
+            nextWidth = currentWidth + req.increment;
+            nextWidth = nextWidth >= g_size? g_size : nextWidth;
+            speed = nextWidth >= g_size? 1 : 20;
+        }
+        else if (req.direction == "close") {
+            currentWidth = getOpening();  
+            nextWidth = currentWidth - req.increment;
+            nextWidth = nextWidth <= GRIPPER_MIN_OPEN? GRIPPER_MIN_OPEN : nextWidth;
+            speed = nextWidth <= GRIPPER_MIN_OPEN? 1 : 20;
+        }
+
+        if (req.direction == "open" || req.direction == "close") {
+            // Incremental moving asnchronously while spinning to check for stop command
+            if (move_async(nextWidth, speed, true) == 0) {
+                ROS_INFO("Incremental %sing of %f mm.", req.direction.c_str(), req.increment);
+                block_comm = true;
+
+                status_t status;
+                int msg_available = 0; // 0 when no msg available, 1 when msg is available and correct, -1 on error
+                do {
+                    msg_available = recv_ack(0x21, &status);
+                    ros::spinOnce();
+                }
+                while (msg_available == 0 || (msg_available == 1 && status == E_CMD_PENDING));
+
+                block_comm = false;
+
+                res.error = msg_available == 1? (status == E_SUCCESS? 0 : 255) : 255;
+                if (res.error == 0) {
+                    ROS_INFO("Incremental %s done", req.direction.c_str());
+                } else {
+                    ROS_INFO("Failed to move incrementally : %s", status_to_str(status));
+                }
+            }
+            else {
+                res.error = 255;
+            }
+        }
+    }
+    else if (req.direction == "open") {
+        // Releasing asnchronously while spinning to check for stop command
+        if (release_async(g_size, 20) == 0) {
+            ROS_INFO("Releasing object...");
+            block_comm = true;
+
+            status_t status;
+            int msg_available = 0; // 0 when no msg available, 1 when msg is available and correct, -1 on error
+            do {
+                msg_available = recv_ack(0x26, &status);
+                ros::spinOnce();
+            }
+            while (msg_available == 0 || (msg_available == 1 && status == E_CMD_PENDING));
+
+            block_comm = false;
+
+            res.error = msg_available == 1? (status == E_SUCCESS? 0 : 255) : 255;
+            if (res.error == 0) {
+                objectGraspped = false;
+            } else {
+                ROS_INFO("Failed to release object while moving incrementally: %s", status_to_str(status));
+            }
+        }else {
+            res.error = 255;
+        }
+    }
+
+    return true;
+}
+
+bool releaseSrv(wsg50_common::Move::Request &req, wsg50_common::Move::Response &res) {
+    if (req.width < 0.0 || req.width > g_size) {
+        ROS_ERROR("Imposible to move to this position. (Width values: [0.0 - %d] ", g_size);
         res.error = 255;
         return false;
-    } else {
-        ROS_WARN("Speed or position values are outside the gripper's physical limits (Position: [0.0 - g_size] / Speed: [0.1 - 420.0])  Using clamped values.");
-        res.error = release(req.width, req.speed);
     }
-    ROS_INFO("Object released correctly.");
+
+    if ( req.speed < 0.0 || req.speed > 420.0 ) {
+        ROS_WARN("Speed values are outside the gripper's physical limits ([0.1 - 420.0])  Using clamped values.");
+    }
+
+    // Releasing asnchronously while spinning to check for stop command
+    if (release_async(req.width, req.speed) == 0) {
+        ROS_INFO("Releasing to %f position at %f mm/s.", req.width, req.speed);
+        block_comm = true;
+
+        status_t status;
+        int msg_available = 0; // 0 when no msg available, 1 when msg is available and correct, -1 on error
+        do {
+            msg_available = recv_ack(0x26, &status);
+            ros::spinOnce();
+        }
+        while (msg_available == 0 || (msg_available == 1 && status == E_CMD_PENDING));
+
+        block_comm = false;
+
+        res.error = msg_available == 1? (status == E_SUCCESS? 0 : 255) : 255;
+        if (res.error == 0) {
+            ROS_INFO("Object released correctly.");
+        } else {
+            ROS_INFO("Failed to release object : %s", status_to_str(status));
+        }
+    }else {
+        res.error = 255;
+    }
     return true;
 }
 
 bool homingSrv(std_srvs::Empty::Request &req, std_srvs::Empty::Request &res)
 {
-    ROS_INFO("Homing...");
-    homing();
-    ROS_INFO("Home position reached.");
+    // Homing asnchronously while spinning to check for stop command
+    if (homing_async() == 0) {
+        ROS_INFO("Homing...");
+        block_comm = true;
+
+        status_t status;
+        int msg_available = 0; // 0 when no msg available, 1 when msg is available and correct, -1 on error
+        do {
+            msg_available = recv_ack(0x20, &status);
+            ros::spinOnce();
+        }
+        while (msg_available == 0 || (msg_available == 1 && status == E_CMD_PENDING));
+
+        block_comm = false;
+
+        if (msg_available == 1 && status == E_SUCCESS) {
+            ROS_INFO("Home position reached.");
+        } else {
+            ROS_INFO("Failed to reach home position : %s", status_to_str(status));
+        }
+    }
+
     return true;
 }
 
@@ -257,6 +404,8 @@ bool stopSrv(std_srvs::Empty::Request &req, std_srvs::Empty::Request &res)
     ROS_WARN("Stop!");
     stop();
     ROS_WARN("Stopped.");
+
+    //stop_called = true;
     return true;
 }
 
@@ -525,6 +674,7 @@ int main( int argc, char **argv )
     ros::NodeHandle nh("~");
     signal(SIGINT, sigint_handler);
     block_comm = false;
+    //stop_called = false;
 
     component_status = nh.advertise<dnb_msgs::ComponentStatus>("component/status", 1, true);
     dnb_msgs::ComponentStatus cstatus_msg;
@@ -594,7 +744,7 @@ int main( int argc, char **argv )
             homingSS = nh.advertiseService("homing", homingSrv);
             stopSS = nh.advertiseService("stop", stopSrv);
             ackSS = nh.advertiseService("ack", ackSrv);
-            incrementSS = nh.advertiseService("move_incrementally", incrementSrv);
+            incrementSS = nh.advertiseService("move_incrementally", incrementSrv2);
 
             setAccSS = nh.advertiseService("set_acceleration", setAccSrv);
             setForceSS = nh.advertiseService("set_force", setForceSrv);

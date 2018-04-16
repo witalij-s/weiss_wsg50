@@ -227,11 +227,10 @@ int cmd_submit_async( unsigned char id, unsigned char *payload, unsigned int len
  * @param *response_len		Response length
  * @param **response	    Response data
  *
- * @return Number of bytes received. -1 on error.
+ * returns 0 when no msg available, 1 when msg is available and correct, -1 on error
  */
 int cmd_recv_ack ( unsigned char id, unsigned char **response, unsigned int *response_len){
 	int res;
-	status_t status;
 	msg_t msg;
 
 	// Reuse message struct to receive response
@@ -245,10 +244,8 @@ int cmd_recv_ack ( unsigned char id, unsigned char **response, unsigned int *res
 
 	// Receive response data
 	res = msg_receive_async( &msg );
-	if ( res < 0 ) {
-		fprintf( stderr, "Message receive failed\n" );
-		return -1;
-	}
+	if ( res == 0 ) return 0;
+	if ( res < 0 ) return -1;
 
 	// Check response ID
 	if ( msg.id != id ) {
@@ -261,7 +258,7 @@ int cmd_recv_ack ( unsigned char id, unsigned char **response, unsigned int *res
 	if ( msg.len > 0 ) *response = msg.data;
 	else *response = 0;
 
-	return (int) msg.len;
+	return 1;
 }
 
 /**

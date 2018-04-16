@@ -68,12 +68,17 @@ typedef struct {
 float convert(unsigned char *b);
 int homing( void );
 int move(float width, float speed, bool stop_on_block, bool ignore_response = false);
-int move_async(float width, float speed, bool stop_on_block);
-int move_recv_ack(status_t* status);
 int stop( bool ignore_response = false );
 int grasp( float objWidth, float speed );
 int release( float width, float speed );
 int ack_fault( void );
+
+int homing_async( void );
+int move_async(float width, float speed, bool stop_on_block);
+int grasp_async(float objWidth, float speed);
+int release_async(float objWidth, float speed);
+int recv_ack ( unsigned char id, status_t* status );
+
 
 int setAcceleration( float acc );
 int setGraspingForceLimit( float force );

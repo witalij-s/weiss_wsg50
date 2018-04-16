@@ -79,10 +79,11 @@ const interface_t tcp =
 	.close = &tcp_close,
 	.read = &tcp_read,
 	.write = &tcp_write,
-	.make_nonblock = &tcp_make_nonblock
+	.get_bytes_count = tcp_get_bytes_count
 };
 
 static tcp_conn_t conn;
+
 
 
 //------------------------------------------------------------------------
@@ -98,23 +99,6 @@ static tcp_conn_t conn;
 //------------------------------------------------------------------------
 // Function implementation
 //------------------------------------------------------------------------
-
-
-/**
- * Change the socket into non-blocking state 
- *
- * @return 0 on sucess, else -1
- */
-int tcp_make_nonblock(unsigned char en){
-	if (en == 1) {
-	    struct timeval timeout = { .tv_sec = 1, .tv_usec = 0 };
-    	return setsockopt( conn.sock, SOL_SOCKET, SO_RCVTIMEO, (void *) &timeout, (socklen_t) sizeof( struct timeval ) );                  
-	}
-	else {
-	    struct timeval timeout = { .tv_sec = TCP_RCV_TIMEOUT_SEC, .tv_usec = 0 };
-    	return setsockopt( conn.sock, SOL_SOCKET, SO_RCVTIMEO, (void *) &timeout, (socklen_t) sizeof( struct timeval ) );     
-	}
-}
 
 
 /**
@@ -144,8 +128,6 @@ int tcp_open( const void *params )
     conn.si_server.sin_port = htons( tcp->port );
     conn.si_server.sin_addr.s_addr = tcp->addr;
 
-    //make_nonblock(&conn.sock);
-
 
 	unsigned int val = 1024;
     setsockopt( conn.sock, SOL_SOCKET, SO_RCVBUF, (void *) &val, (socklen_t) sizeof( val ) );
@@ -172,6 +154,11 @@ void tcp_close( void )
 	conn.sock = 0;
 }
 
+int tcp_get_bytes_count( void ) {
+	int count;
+	if (ioctl(conn.sock, FIONREAD, &count) == -1) return -1;
+	return count;
+}
 
 /**
  * Read character from TCP socket
@@ -188,13 +175,12 @@ int tcp_read( unsigned char *buf, unsigned int len )
 
 	// Read desired number of bytes
 	res = recv( conn.sock, buf, len, 0 );
-	if ( res < 0 )
+	if ( res < 0 && errno != EAGAIN )
 	{
-	    printf("Failed to read data %s\n", strerror(errno));
-	    if (errno != ETIMEDOUT) {
-			close( conn.sock );
-			quit( "Failed to read data from TCP socket\n" );
-	    }
+	    printf("Failed to read data from TCP socket: %s\n", strerror(errno));
+		close( conn.sock );
+		quit("");
+
 	}
 
     return res;
