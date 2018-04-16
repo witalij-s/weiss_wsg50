@@ -53,7 +53,7 @@ typedef struct
 	void ( *close ) ( void );
 	int ( *read ) ( unsigned char *, unsigned int );
 	int ( *write ) ( unsigned char *, unsigned int );
-	int ( *make_nonblock ) ( unsigned char );
+	int ( *get_bytes_count ) ( void );
 } interface_t;
 
 

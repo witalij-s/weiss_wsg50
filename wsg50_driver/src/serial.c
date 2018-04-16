@@ -89,7 +89,7 @@ const interface_t serial =
 	.close = &serial_close,
 	.read = &serial_read,
 	.write = &serial_write,
-	.make_nonblock = serial_make_nonblock
+	.get_bytes_count = serial_get_bytes_count
 };
 
 #ifdef WIN32
@@ -224,6 +224,10 @@ void serial_close( void )
 	close( conn.fd );
 }
 
+int serial_get_bytes_count( void ) {
+    // to be implemented if needed
+    return -1;
+}
 
 /**
  * Read from serial device
@@ -261,11 +265,5 @@ int serial_read( unsigned char *buf, unsigned int len )
 int serial_write( unsigned char *buf, unsigned int len )
 {
 	return( write( conn.fd, (void *) buf, len ) );
-}
-
-
-int serial_make_nonblock( unsigned char en ) {
-    // to be implemented if needed
-    return -1;
 }
 
