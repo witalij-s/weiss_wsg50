@@ -164,18 +164,16 @@ bool moveSrv(wsg50_common::Move::Request &req, wsg50_common::Move::Response &res
         if (res.error == 0) {
             ROS_INFO("Target position reached");
         } else {
-            ROS_INFO("Failed to reach target position : %s", status_to_str(status));
+            ROS_ERROR("Failed while moving : %s", status_to_str(status));
         }
     }else {
         res.error = 255;
-        return false;
     }
 
     return true;
 }
 
-bool graspSrv(wsg50_common::Move::Request &req, wsg50_common::Move::Response &res)
-{
+bool graspSrv(wsg50_common::Move::Request &req, wsg50_common::Move::Response &res){
     if (req.width < 0.0 || req.width > g_size) {
         ROS_ERROR("Imposible to move to this position. (Width values: [0.0 - %d] ", g_size);
         res.error = 255;
@@ -206,114 +204,168 @@ bool graspSrv(wsg50_common::Move::Request &req, wsg50_common::Move::Response &re
             ROS_INFO("Object grasped correctly.");
             objectGraspped=true;
         } else {
-            ROS_INFO("Failed to grasp object : %s", status_to_str(status));
+            ROS_ERROR("Failed while grasping object : %s", status_to_str(status));
         }
     }else {
         res.error = 255;
-        return false;
     }
 
     return true;
 }
 
-bool incrementSrv(wsg50_common::Incr::Request &req, wsg50_common::Incr::Response &res)
-{
-    if (req.direction == "open") {
+// bool incrementSrv(wsg50_common::Incr::Request &req, wsg50_common::Incr::Response &res){
+//     if (req.direction == "open") {
 
-        if (!objectGraspped) {
+//         if (!objectGraspped) {
 
-            float currentWidth = getOpening();
-            float nextWidth = currentWidth + req.increment;
-            if ( (currentWidth < g_size) && nextWidth < g_size ) {
-                //grasp(nextWidth, 1);
-                move(nextWidth,20, true);
-                currentWidth = nextWidth;
-            } else if( nextWidth >= g_size) {
-                //grasp(g_size, 1);
-                move(g_size,1, true);
-                currentWidth = g_size;
-            }
-        } else {
-            ROS_INFO("Releasing object...");
-            release(g_size, 20);
-            objectGraspped = false;
-        }
-    } else if (req.direction == "close") {
+//             float currentWidth = getOpening();
+//             float nextWidth = currentWidth + req.increment;
+//             if ( (currentWidth < g_size) && nextWidth < g_size ) {
+//                 //grasp(nextWidth, 1);
+//                 move(nextWidth,20, true);
+//                 currentWidth = nextWidth;
+//             } else if( nextWidth >= g_size) {
+//                 //grasp(g_size, 1);
+//                 move(g_size,1, true);
+//                 currentWidth = g_size;
+//             }
+//         } else {
+//             ROS_INFO("Releasing object...");
+//             release(g_size, 20);
+//             objectGraspped = false;
+//         }
+//     } else if (req.direction == "close") {
 
-        if (!objectGraspped) {
+//         if (!objectGraspped) {
 
-            float currentWidth = getOpening();
-            float nextWidth = currentWidth - req.increment;
+//             float currentWidth = getOpening();
+//             float nextWidth = currentWidth - req.increment;
 
-            if ( (currentWidth > GRIPPER_MIN_OPEN) && nextWidth > GRIPPER_MIN_OPEN ) {
-                //grasp(nextWidth, 1);
-                move(nextWidth,20, true);
-                currentWidth = nextWidth;
-            } else if( nextWidth <= GRIPPER_MIN_OPEN) {
-                //grasp(GRIPPER_MIN_OPEN, 1);
-                move(GRIPPER_MIN_OPEN,1, true);
-                currentWidth = GRIPPER_MIN_OPEN;
-            }
-        }
+//             if ( (currentWidth > GRIPPER_MIN_OPEN) && nextWidth > GRIPPER_MIN_OPEN ) {
+//                 //grasp(nextWidth, 1);
+//                 move(nextWidth,20, true);
+//                 currentWidth = nextWidth;
+//             } else if( nextWidth <= GRIPPER_MIN_OPEN) {
+//                 //grasp(GRIPPER_MIN_OPEN, 1);
+//                 move(GRIPPER_MIN_OPEN,1, true);
+//                 currentWidth = GRIPPER_MIN_OPEN;
+//             }
+//         }
+//     }
+//     return true;
+// }
+
+// bool incrementSrv(wsg50_common::Incr::Request &req, wsg50_common::Incr::Response &res) {
+//     if (!objectGraspped) {
+//         float currentWidth, nextWidth, speed; 
+//         if (req.direction == "open") {  
+//             currentWidth = getOpening();
+//             ROS_INFO("Current Openening : %f ", currentWidth);  
+//             nextWidth = currentWidth + req.increment;
+//             nextWidth = nextWidth >= g_size? g_size : nextWidth;
+//             ROS_INFO("Next Openening : %f ", nextWidth);  
+//             speed = nextWidth >= g_size? 1 : 20;
+//         }
+//         else if (req.direction == "close") {
+//             currentWidth = getOpening();  
+//             nextWidth = currentWidth - req.increment;
+//             nextWidth = nextWidth <= GRIPPER_MIN_OPEN? GRIPPER_MIN_OPEN : nextWidth;
+//             speed = nextWidth <= GRIPPER_MIN_OPEN? 1 : 20;
+//         }
+
+//         if (req.direction == "open" || req.direction == "close") {
+//             // Incremental moving asnchronously while spinning to check for stop command
+//             if (move_async(nextWidth, speed, true) == 0) {
+//                 ROS_INFO("Incremental %sing of %f mm.", req.direction.c_str(), req.increment);
+//                 block_comm = true;
+
+//                 status_t status;
+//                 int msg_available = 0; // 0 when no msg available, 1 when msg is available and correct, -1 on error
+//                 do {
+//                     msg_available = recv_ack(0x21, &status);
+//                     ros::spinOnce();
+//                 }
+//                 while (msg_available == 0 || (msg_available == 1 && status == E_CMD_PENDING));
+
+//                 block_comm = false;
+
+//                 res.error = msg_available == 1? (status == E_SUCCESS? 0 : 255) : 255;
+//                 if (res.error == 0) {
+//                     ROS_INFO("Incremental %s done", req.direction.c_str());
+//                 } else {
+//                     ROS_ERROR("Failed while move incrementally : %s", status_to_str(status));
+//                 }
+//             }
+//             else {
+//                 res.error = 255;
+//             }
+//         }
+//     }
+//     else {
+
+//         if (req.direction == "open") {
+//             // Releasing asnchronously while spinning to check for stop command
+//             if (release_async(g_size, 20) == 0) {
+//                 ROS_INFO("Releasing object...");
+//                 block_comm = true;
+
+//                 status_t status;
+//                 int msg_available = 0; // 0 when no msg available, 1 when msg is available and correct, -1 on error
+//                 do {
+//                     msg_available = recv_ack(0x26, &status);
+//                     ros::spinOnce();
+//                 }
+//                 while (msg_available == 0 || (msg_available == 1 && status == E_CMD_PENDING));
+
+//                 block_comm = false;
+
+//                 res.error = msg_available == 1? (status == E_SUCCESS? 0 : 255) : 255;
+//                 if (res.error == 0) {
+//                     objectGraspped = false;
+//                     ROS_INFO("Object successfully released while moving incrementally");
+//                 } else {
+//                     ROS_ERROR("Failed to release object while moving incrementally: %s", status_to_str(status));
+//                 }
+//             }else {
+//                 res.error = 255;
+//             }
+//         }
+
+//         if (req.direction == "close"){
+//                 ROS_ERROR("Cannot close while an object is graspped");
+//                 res.error = 255;
+//         }
+//     }
+
+//     return true;
+// }
+
+bool incrementSrv(wsg50_common::Incr::Request &req, wsg50_common::Incr::Response &res) {
+    float currentWidth, nextWidth, speed; 
+    if (req.direction == "open") {  
+        currentWidth = getOpening();
+        nextWidth = currentWidth + req.increment;
+        nextWidth = nextWidth >= g_size? g_size : nextWidth;
+        speed = nextWidth >= g_size? 1 : 20;
     }
-    return true;
-}
-
-bool incrementSrv2(wsg50_common::Incr::Request &req, wsg50_common::Incr::Response &res)
-{
-    if (!objectGraspped) {
-        float currentWidth, nextWidth, speed; 
-        if (req.direction == "open") {  
-            currentWidth = getOpening();  
-            nextWidth = currentWidth + req.increment;
-            nextWidth = nextWidth >= g_size? g_size : nextWidth;
-            speed = nextWidth >= g_size? 1 : 20;
-        }
-        else if (req.direction == "close") {
-            currentWidth = getOpening();  
-            nextWidth = currentWidth - req.increment;
-            nextWidth = nextWidth <= GRIPPER_MIN_OPEN? GRIPPER_MIN_OPEN : nextWidth;
-            speed = nextWidth <= GRIPPER_MIN_OPEN? 1 : 20;
-        }
-
-        if (req.direction == "open" || req.direction == "close") {
-            // Incremental moving asnchronously while spinning to check for stop command
-            if (move_async(nextWidth, speed, true) == 0) {
-                ROS_INFO("Incremental %sing of %f mm.", req.direction.c_str(), req.increment);
-                block_comm = true;
-
-                status_t status;
-                int msg_available = 0; // 0 when no msg available, 1 when msg is available and correct, -1 on error
-                do {
-                    msg_available = recv_ack(0x21, &status);
-                    ros::spinOnce();
-                }
-                while (msg_available == 0 || (msg_available == 1 && status == E_CMD_PENDING));
-
-                block_comm = false;
-
-                res.error = msg_available == 1? (status == E_SUCCESS? 0 : 255) : 255;
-                if (res.error == 0) {
-                    ROS_INFO("Incremental %s done", req.direction.c_str());
-                } else {
-                    ROS_INFO("Failed to move incrementally : %s", status_to_str(status));
-                }
-            }
-            else {
-                res.error = 255;
-            }
-        }
+    else if (req.direction == "close") {
+        currentWidth = getOpening();  
+        nextWidth = currentWidth - req.increment;
+        nextWidth = nextWidth <= GRIPPER_MIN_OPEN? GRIPPER_MIN_OPEN : nextWidth;
+        speed = nextWidth <= GRIPPER_MIN_OPEN? 1 : 20;
     }
-    else if (req.direction == "open") {
-        // Releasing asnchronously while spinning to check for stop command
-        if (release_async(g_size, 20) == 0) {
-            ROS_INFO("Releasing object...");
+
+    if (req.direction == "open" || req.direction == "close") {
+        // Incremental moving asnchronously while spinning to check for stop command
+        if (move_async(nextWidth, speed, true) == 0) {
+            ROS_INFO("Incremental %sing of %f mm - Current Openening : %f - Next Openening : %f", req.direction.c_str(), req.increment, currentWidth, nextWidth);   
+
             block_comm = true;
 
             status_t status;
             int msg_available = 0; // 0 when no msg available, 1 when msg is available and correct, -1 on error
             do {
-                msg_available = recv_ack(0x26, &status);
+                msg_available = recv_ack(0x21, &status);
                 ros::spinOnce();
             }
             while (msg_available == 0 || (msg_available == 1 && status == E_CMD_PENDING));
@@ -322,15 +374,16 @@ bool incrementSrv2(wsg50_common::Incr::Request &req, wsg50_common::Incr::Respons
 
             res.error = msg_available == 1? (status == E_SUCCESS? 0 : 255) : 255;
             if (res.error == 0) {
-                objectGraspped = false;
+                ROS_INFO("Incremental %s done", req.direction.c_str());
             } else {
-                ROS_INFO("Failed to release object while moving incrementally: %s", status_to_str(status));
+                ROS_ERROR("Failed while move incrementally : %s", status_to_str(status));
             }
-        }else {
+        }
+        else {
             res.error = 255;
         }
     }
-
+    
     return true;
 }
 
@@ -362,9 +415,10 @@ bool releaseSrv(wsg50_common::Move::Request &req, wsg50_common::Move::Response &
 
         res.error = msg_available == 1? (status == E_SUCCESS? 0 : 255) : 255;
         if (res.error == 0) {
+            objectGraspped = false;
             ROS_INFO("Object released correctly.");
         } else {
-            ROS_INFO("Failed to release object : %s", status_to_str(status));
+            ROS_ERROR("Failed to release object : %s", status_to_str(status));
         }
     }else {
         res.error = 255;
@@ -372,8 +426,7 @@ bool releaseSrv(wsg50_common::Move::Request &req, wsg50_common::Move::Response &
     return true;
 }
 
-bool homingSrv(std_srvs::Empty::Request &req, std_srvs::Empty::Request &res)
-{
+bool homingSrv(std_srvs::Empty::Request &req, std_srvs::Empty::Request &res) {
     // Homing asnchronously while spinning to check for stop command
     if (homing_async() == 0) {
         ROS_INFO("Homing...");
@@ -392,7 +445,7 @@ bool homingSrv(std_srvs::Empty::Request &req, std_srvs::Empty::Request &res)
         if (msg_available == 1 && status == E_SUCCESS) {
             ROS_INFO("Home position reached.");
         } else {
-            ROS_INFO("Failed to reach home position : %s", status_to_str(status));
+            ROS_ERROR("Failed to reach home position : %s", status_to_str(status));
         }
     }
 
@@ -404,8 +457,6 @@ bool stopSrv(std_srvs::Empty::Request &req, std_srvs::Empty::Request &res)
     ROS_WARN("Stop!");
     stop();
     ROS_WARN("Stopped.");
-
-    //stop_called = true;
     return true;
 }
 
@@ -674,7 +725,6 @@ int main( int argc, char **argv )
     ros::NodeHandle nh("~");
     signal(SIGINT, sigint_handler);
     block_comm = false;
-    //stop_called = false;
 
     component_status = nh.advertise<dnb_msgs::ComponentStatus>("component/status", 1, true);
     dnb_msgs::ComponentStatus cstatus_msg;
@@ -683,7 +733,7 @@ int main( int argc, char **argv )
     double rate, grasping_force;
     bool use_udp = false;
 
-    nh.param("size", size, 210);
+    nh.param("size", size, 110);
     nh.param("ip", ip, std::string("192.168.1.20"));
     nh.param("port", port, 1000);
     nh.param("local_port", local_port, 1501);
@@ -694,9 +744,9 @@ int main( int argc, char **argv )
     nh.param("rate", rate, 5.0); // With custom script, up to 30Hz are possible
     nh.param("grasping_force", grasping_force, 0.0);
 
-    if (size != 210 or size != 110) {
-        ROS_WARN("Gripper size: %d is invalid. Using default size of 210 mm.", size);
-        g_size = 210;
+    if (size > 110) {
+        ROS_WARN("Gripper size: %d is invalid. Using default size of 110 mm.", size);
+        g_size = 110;
     }
     else {
         g_size = size;
@@ -744,7 +794,7 @@ int main( int argc, char **argv )
             homingSS = nh.advertiseService("homing", homingSrv);
             stopSS = nh.advertiseService("stop", stopSrv);
             ackSS = nh.advertiseService("ack", ackSrv);
-            incrementSS = nh.advertiseService("move_incrementally", incrementSrv2);
+            incrementSS = nh.advertiseService("move_incrementally", incrementSrv);
 
             setAccSS = nh.advertiseService("set_acceleration", setAccSrv);
             setForceSS = nh.advertiseService("set_force", setForceSrv);
@@ -764,6 +814,7 @@ int main( int argc, char **argv )
         if (g_mode_script || g_mode_periodic)
             g_pub_moving = nh.advertise<std_msgs::Bool>("moving", 10);
 
+        ack_fault();
         ROS_INFO("Ready to use, homing now...");
         homing();
 
