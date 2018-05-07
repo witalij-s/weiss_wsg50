@@ -8,13 +8,14 @@ find_package(catkin REQUIRED COMPONENTS
   roscpp
   std_msgs
   std_srvs
+  dnb_msgs
   wsg50_common
 )
 
 catkin_package(
 #   INCLUDE_DIRS include
 #  LIBRARIES vh_pixelmap
-  CATKIN_DEPENDS roscpp std_msgs std_srvs wsg50_common
+  CATKIN_DEPENDS roscpp std_msgs std_srvs wsg50_common dnb_msgs
 #  DEPENDS system_lib
 )
 
