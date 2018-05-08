@@ -175,11 +175,11 @@ int tcp_read( unsigned char *buf, unsigned int len )
 
 	// Read desired number of bytes
 	res = recv( conn.sock, buf, len, 0 );
-	if ( res < 0 && errno != EAGAIN )
+	if ( res < 0 )
 	{
-	    printf("Failed to read data from TCP socket: %s\n", strerror(errno));
+		// if (errno != EINTR) printf("Failed to read data from TCP socket: %s\n", strerror(errno));
 		close( conn.sock );
-		quit("");
+		quit("Failed to read data from TCP socket");
 
 	}
 
