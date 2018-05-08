@@ -84,6 +84,9 @@ float increment;
 bool objectGraspped;
 bool block_comm;
 
+unsigned char last_cmd_id;
+bool stop_called;
+
 ros::Publisher g_pub_state, g_pub_joint, g_pub_moving;
 ros::Publisher component_status;
 int g_timer_cnt = 0, g_size;
@@ -153,6 +156,7 @@ bool moveSrv(wsg50_common::Move::Request &req, wsg50_common::Move::Response &res
     // Moving asnchronously while spinning to check for stop command
     if (move_async(req.width, req.speed, false) == 0) {
         block_comm = true;
+        last_cmd_id = 0x21;
 
         status_t status;
         int msg_available = 0; // 0 when no msg available, 1 when msg is available and correct, -1 on error
@@ -160,6 +164,12 @@ bool moveSrv(wsg50_common::Move::Request &req, wsg50_common::Move::Response &res
             msg_available = recv_ack(0x21, &status);
             if (msg_available == 1 && status == E_CMD_PENDING) ROS_INFO("Moving to %f position at %f mm/s.", req.width, req.speed);
             ros::spinOnce();
+            if (stop_called) {
+                res.error = 255;
+                stop_called = false;
+                block_comm = false;
+                return true;
+            }
         }
         while (msg_available == 0 || (msg_available == 1 && status == E_CMD_PENDING));
 
@@ -198,6 +208,7 @@ bool graspSrv(wsg50_common::Move::Request &req, wsg50_common::Move::Response &re
     // Moving asnchronously while spinning to check for stop command
     if (grasp_async(req.width, req.speed) == 0) {        
         block_comm = true;
+        last_cmd_id = 0x25;
 
         status_t status;
         int msg_available = 0; // 0 when no msg available, 1 when msg is available and correct, -1 on error
@@ -205,6 +216,12 @@ bool graspSrv(wsg50_common::Move::Request &req, wsg50_common::Move::Response &re
             msg_available = recv_ack(0x25, &status);
             if (msg_available == 1 && status == E_CMD_PENDING) ROS_INFO("Grasping object at %f with %f mm/s.", req.width, req.speed);
             ros::spinOnce();
+            if (stop_called) {
+                res.error = 255;
+                stop_called = false;
+                block_comm = false;
+                return true;
+            }
         }
         while (msg_available == 0 || (msg_available == 1 && status == E_CMD_PENDING));
 
@@ -303,6 +320,7 @@ bool graspSrv(wsg50_common::Move::Request &req, wsg50_common::Move::Response &re
 //             if (move_async(nextWidth, speed, true) == 0) {
 //                 ROS_INFO("Incremental %sing of %f mm.", req.direction.c_str(), req.increment);
 //                 block_comm = true;
+//                 last_cmd_id = 0x21;
 
 //                 status_t status;
 //                 int msg_available = 0; // 0 when no msg available, 1 when msg is available and correct, -1 on error
@@ -333,12 +351,19 @@ bool graspSrv(wsg50_common::Move::Request &req, wsg50_common::Move::Response &re
 //             if (release_async(g_size, 20) == 0) {
 //                 ROS_INFO("Releasing object...");
 //                 block_comm = true;
+//                 last_cmd_id = 0x21;
 
 //                 status_t status;
 //                 int msg_available = 0; // 0 when no msg available, 1 when msg is available and correct, -1 on error
 //                 do {
 //                     msg_available = recv_ack(0x26, &status);
 //                     ros::spinOnce();
+//                     if (stop_called) {
+//                         res.error = 255;
+//                         stop_called = false;
+//                         block_comm = false;
+//                         return true;
+//                     }
 //                 }
 //                 while (msg_available == 0 || (msg_available == 1 && status == E_CMD_PENDING));
 
@@ -389,8 +414,8 @@ bool incrementSrv(wsg50_common::Incr::Request &req, wsg50_common::Incr::Response
     if (req.direction == "open" || req.direction == "close") {
         // Incremental moving asnchronously while spinning to check for stop command
         if (move_async(nextWidth, speed, true) == 0) {   
-
             block_comm = true;
+            last_cmd_id = 0x21;
 
             status_t status;
             int msg_available = 0; // 0 when no msg available, 1 when msg is available and correct, -1 on error
@@ -400,6 +425,12 @@ bool incrementSrv(wsg50_common::Incr::Request &req, wsg50_common::Incr::Response
                     ROS_INFO("Incremental %sing of %f mm - CurrWidth: %f - NxtWidth: %f", req.direction.c_str(), req.increment, currentWidth, nextWidth);            
                 }
                 ros::spinOnce();
+                if (stop_called) {
+                    res.error = 255;
+                    stop_called = false;
+                    block_comm = false;
+                    return true;
+                }
             }
             while (msg_available == 0 || (msg_available == 1 && status == E_CMD_PENDING));
 
@@ -440,6 +471,7 @@ bool releaseSrv(wsg50_common::Move::Request &req, wsg50_common::Move::Response &
     // Releasing asnchronously while spinning to check for stop command
     if (release_async(req.width, req.speed) == 0) {
         block_comm = true;
+        last_cmd_id = 0x26;
 
         status_t status;
         int msg_available = 0; // 0 when no msg available, 1 when msg is available and correct, -1 on error
@@ -447,6 +479,12 @@ bool releaseSrv(wsg50_common::Move::Request &req, wsg50_common::Move::Response &
             msg_available = recv_ack(0x26, &status);
             if (msg_available == 1 && status == E_CMD_PENDING) ROS_INFO("Releasing to %f position at %f mm/s.", req.width, req.speed);
             ros::spinOnce();
+            if (stop_called) {
+                res.error = 255;
+                stop_called = false;
+                block_comm = false;
+                return true;
+            }
         }
         while (msg_available == 0 || (msg_available == 1 && status == E_CMD_PENDING));
 
@@ -474,6 +512,7 @@ bool homingSrv(std_srvs::Empty::Request &req, std_srvs::Empty::Request &res) {
     // Homing asnchronously while spinning to check for stop command
     if (homing_async() == 0) {
         block_comm = true;
+        last_cmd_id = 0x20;
 
         status_t status;
         int msg_available = 0; // 0 when no msg available, 1 when msg is available and correct, -1 on error
@@ -481,6 +520,11 @@ bool homingSrv(std_srvs::Empty::Request &req, std_srvs::Empty::Request &res) {
             msg_available = recv_ack(0x20, &status);
             if (msg_available == 1 && status == E_CMD_PENDING) ROS_INFO("Homing...");
             ros::spinOnce();
+            if (stop_called) {
+                stop_called = false;
+                block_comm = false;
+                return true;
+            }
         }
         while (msg_available == 0 || (msg_available == 1 && status == E_CMD_PENDING));
 
@@ -500,8 +544,19 @@ bool homingSrv(std_srvs::Empty::Request &req, std_srvs::Empty::Request &res) {
 bool stopSrv(std_srvs::Empty::Request &req, std_srvs::Empty::Request &res)
 {
     ROS_WARN("Stop!");
+    
     stop();
+
+    // If a motion control command was interrupted, wait for its response
+    if (block_comm) {
+        ROS_WARN("Waiting for the last motion control command");
+        status_t status;
+        while (recv_ack(last_cmd_id, &status) == 0); 
+    }
+
     ROS_WARN("Stopped.");
+    
+    stop_called = true; // this will abort the last motion control service
     return true;
 }
 
@@ -770,6 +825,7 @@ int main( int argc, char **argv )
     ros::NodeHandle nh("~");
     signal(SIGINT, sigint_handler);
     block_comm = false;
+    stop_called = false;
 
     component_status = nh.advertise<dnb_msgs::ComponentStatus>("component/status", 1, true);
     dnb_msgs::ComponentStatus cstatus_msg;
