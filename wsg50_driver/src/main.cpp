@@ -83,9 +83,12 @@
 float increment;
 bool objectGraspped;
 bool block_comm;
+<<<<<<< HEAD
 
 unsigned char last_cmd_id;
 bool stop_called;
+=======
+>>>>>>> 7853f7ec04ea501f5123a50353049b00ddda075e
 
 ros::Publisher g_pub_state, g_pub_joint, g_pub_moving;
 ros::Publisher component_status;
@@ -164,6 +167,7 @@ bool moveSrv(wsg50_common::Move::Request &req, wsg50_common::Move::Response &res
             msg_available = recv_ack(0x21, &status);
             if (msg_available == 1 && status == E_CMD_PENDING) ROS_INFO("Moving to %f position at %f mm/s.", req.width, req.speed);
             ros::spinOnce();
+
             if (stop_called) {
                 res.error = 255;
                 stop_called = false;
@@ -417,6 +421,7 @@ bool incrementSrv(wsg50_common::Incr::Request &req, wsg50_common::Incr::Response
             block_comm = true;
             last_cmd_id = 0x21;
 
+
             status_t status;
             int msg_available = 0; // 0 when no msg available, 1 when msg is available and correct, -1 on error
             do {
@@ -513,7 +518,6 @@ bool homingSrv(std_srvs::Empty::Request &req, std_srvs::Empty::Request &res) {
     if (homing_async() == 0) {
         block_comm = true;
         last_cmd_id = 0x20;
-
         status_t status;
         int msg_available = 0; // 0 when no msg available, 1 when msg is available and correct, -1 on error
         do {
