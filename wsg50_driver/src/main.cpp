@@ -83,12 +83,8 @@
 float increment;
 bool objectGraspped;
 bool block_comm;
-<<<<<<< HEAD
-
 unsigned char last_cmd_id;
 bool stop_called;
-=======
->>>>>>> 7853f7ec04ea501f5123a50353049b00ddda075e
 
 ros::Publisher g_pub_state, g_pub_joint, g_pub_moving;
 ros::Publisher component_status;
