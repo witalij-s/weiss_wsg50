@@ -44,6 +44,8 @@
 #include <assert.h>
 #include <thread>
 #include <chrono>
+#include <mutex>
+
 
 #include "wsg50/common.h"
 #include "wsg50/cmd.h"
@@ -82,7 +84,7 @@
 
 float increment;
 bool objectGraspped;
-bool block_comm;
+bool in_motion;
 unsigned char last_cmd_id;
 bool stop_called;
 
@@ -136,7 +138,7 @@ void publish_status_and_joint_states(gripper_response info) {
 }
 
 bool moveSrv(wsg50_common::Move::Request &req, wsg50_common::Move::Response &res) {
-    if (block_comm){
+    if (in_motion){
         ROS_WARN("Another Motion Control service is already running. Try again later!");
         res.error = 1;
         return true;
@@ -154,7 +156,7 @@ bool moveSrv(wsg50_common::Move::Request &req, wsg50_common::Move::Response &res
 
     // Moving asnchronously while spinning to check for stop command
     if (move_async(req.width, req.speed, false) == 0) {
-        block_comm = true;
+        in_motion = true;
         last_cmd_id = 0x21;
 
         status_t status;
@@ -167,13 +169,13 @@ bool moveSrv(wsg50_common::Move::Request &req, wsg50_common::Move::Response &res
             if (stop_called) {
                 res.error = 255;
                 stop_called = false;
-                block_comm = false;
+                in_motion = false;
                 return true;
             }
         }
         while (msg_available == 0 || (msg_available == 1 && status == E_CMD_PENDING));
 
-        block_comm = false;
+        in_motion = false;
 
         res.error = msg_available == 1? (status == E_SUCCESS? 0 : 255) : 255;
         if (res.error == 0) {
@@ -189,7 +191,7 @@ bool moveSrv(wsg50_common::Move::Request &req, wsg50_common::Move::Response &res
 }
 
 bool graspSrv(wsg50_common::Move::Request &req, wsg50_common::Move::Response &res){
-    if (block_comm){
+    if (in_motion){
         ROS_WARN("Another Motion Control service is already running. Try again later!");
         res.error = 1;
         return true;
@@ -207,7 +209,7 @@ bool graspSrv(wsg50_common::Move::Request &req, wsg50_common::Move::Response &re
 
     // Moving asnchronously while spinning to check for stop command
     if (grasp_async(req.width, req.speed) == 0) {        
-        block_comm = true;
+        in_motion = true;
         last_cmd_id = 0x25;
 
         status_t status;
@@ -219,13 +221,13 @@ bool graspSrv(wsg50_common::Move::Request &req, wsg50_common::Move::Response &re
             if (stop_called) {
                 res.error = 255;
                 stop_called = false;
-                block_comm = false;
+                in_motion = false;
                 return true;
             }
         }
         while (msg_available == 0 || (msg_available == 1 && status == E_CMD_PENDING));
 
-        block_comm = false;
+        in_motion = false;
 
         res.error = msg_available == 1? (status == E_SUCCESS? 0 : 255) : 255;
         if (res.error == 0) {
@@ -243,7 +245,7 @@ bool graspSrv(wsg50_common::Move::Request &req, wsg50_common::Move::Response &re
 
 // bool incrementSrv(wsg50_common::Incr::Request &req, wsg50_common::Incr::Response &res){
 
-//     if (block_comm){
+//     if (in_motion){
 //         ROS_WARN("Another Motion Control service is already running. Try again later!");
 //         res.error = 1;
 //         return true;
@@ -292,7 +294,7 @@ bool graspSrv(wsg50_common::Move::Request &req, wsg50_common::Move::Response &re
 
 // bool incrementSrv(wsg50_common::Incr::Request &req, wsg50_common::Incr::Response &res) {
 
-//     if (block_comm){
+//     if (in_motion){
 //         ROS_WARN("Another Motion Control service is already running. Try again later!");
 //         res.error = 1;
 //         return true;
@@ -319,7 +321,7 @@ bool graspSrv(wsg50_common::Move::Request &req, wsg50_common::Move::Response &re
 //             // Incremental moving asnchronously while spinning to check for stop command
 //             if (move_async(nextWidth, speed, true) == 0) {
 //                 ROS_INFO("Incremental %sing of %f mm.", req.direction.c_str(), req.increment);
-//                 block_comm = true;
+//                 in_motion = true;
 //                 last_cmd_id = 0x21;
 
 //                 status_t status;
@@ -330,7 +332,7 @@ bool graspSrv(wsg50_common::Move::Request &req, wsg50_common::Move::Response &re
 //                 }
 //                 while (msg_available == 0 || (msg_available == 1 && status == E_CMD_PENDING));
 
-//                 block_comm = false;
+//                 in_motion = false;
 
 //                 res.error = msg_available == 1? (status == E_SUCCESS? 0 : 255) : 255;
 //                 if (res.error == 0) {
@@ -350,7 +352,7 @@ bool graspSrv(wsg50_common::Move::Request &req, wsg50_common::Move::Response &re
 //             // Releasing asnchronously while spinning to check for stop command
 //             if (release_async(g_size, 20) == 0) {
 //                 ROS_INFO("Releasing object...");
-//                 block_comm = true;
+//                 in_motion = true;
 //                 last_cmd_id = 0x21;
 
 //                 status_t status;
@@ -361,13 +363,13 @@ bool graspSrv(wsg50_common::Move::Request &req, wsg50_common::Move::Response &re
 //                     if (stop_called) {
 //                         res.error = 255;
 //                         stop_called = false;
-//                         block_comm = false;
+//                         in_motion = false;
 //                         return true;
 //                     }
 //                 }
 //                 while (msg_available == 0 || (msg_available == 1 && status == E_CMD_PENDING));
 
-//                 block_comm = false;
+//                 in_motion = false;
 
 //                 res.error = msg_available == 1? (status == E_SUCCESS? 0 : 255) : 255;
 //                 if (res.error == 0) {
@@ -391,7 +393,7 @@ bool graspSrv(wsg50_common::Move::Request &req, wsg50_common::Move::Response &re
 // }
 
 bool incrementSrv(wsg50_common::Incr::Request &req, wsg50_common::Incr::Response &res) {
-    if (block_comm){
+    if (in_motion){
         ROS_WARN("Another Motion Control service is already running. Try again later!");
         res.error = 1;
         return true;
@@ -414,7 +416,7 @@ bool incrementSrv(wsg50_common::Incr::Request &req, wsg50_common::Incr::Response
     if (req.direction == "open" || req.direction == "close") {
         // Incremental moving asnchronously while spinning to check for stop command
         if (move_async(nextWidth, speed, true) == 0) {   
-            block_comm = true;
+            in_motion = true;
             last_cmd_id = 0x21;
 
 
@@ -429,13 +431,13 @@ bool incrementSrv(wsg50_common::Incr::Request &req, wsg50_common::Incr::Response
                 if (stop_called) {
                     res.error = 255;
                     stop_called = false;
-                    block_comm = false;
+                    in_motion = false;
                     return true;
                 }
             }
             while (msg_available == 0 || (msg_available == 1 && status == E_CMD_PENDING));
 
-            block_comm = false;
+            in_motion = false;
 
             res.error = msg_available == 1? (status == E_SUCCESS? 0 : 255) : 255;
             if (res.error == 0) {
@@ -453,7 +455,7 @@ bool incrementSrv(wsg50_common::Incr::Request &req, wsg50_common::Incr::Response
 }
 
 bool releaseSrv(wsg50_common::Move::Request &req, wsg50_common::Move::Response &res) {
-    if (block_comm){
+    if (in_motion){
         ROS_WARN("Another Motion Control service is already running. Try again later!");
         res.error = 1;
         return true;
@@ -471,7 +473,7 @@ bool releaseSrv(wsg50_common::Move::Request &req, wsg50_common::Move::Response &
 
     // Releasing asnchronously while spinning to check for stop command
     if (release_async(req.width, req.speed) == 0) {
-        block_comm = true;
+        in_motion = true;
         last_cmd_id = 0x26;
 
         status_t status;
@@ -483,13 +485,13 @@ bool releaseSrv(wsg50_common::Move::Request &req, wsg50_common::Move::Response &
             if (stop_called) {
                 res.error = 255;
                 stop_called = false;
-                block_comm = false;
+                in_motion = false;
                 return true;
             }
         }
         while (msg_available == 0 || (msg_available == 1 && status == E_CMD_PENDING));
 
-        block_comm = false;
+        in_motion = false;
 
         res.error = msg_available == 1? (status == E_SUCCESS? 0 : 255) : 255;
         if (res.error == 0) {
@@ -505,14 +507,14 @@ bool releaseSrv(wsg50_common::Move::Request &req, wsg50_common::Move::Response &
 }
 
 bool homingSrv(std_srvs::Empty::Request &req, std_srvs::Empty::Request &res) {
-    if (block_comm){
+    if (in_motion){
         ROS_WARN("Another Motion Control service is already running. Try again later!");
         return false;
     }
 
     // Homing asnchronously while spinning to check for stop command
     if (homing_async() == 0) {
-        block_comm = true;
+        in_motion = true;
         last_cmd_id = 0x20;
         status_t status;
         int msg_available = 0; // 0 when no msg available, 1 when msg is available and correct, -1 on error
@@ -522,13 +524,13 @@ bool homingSrv(std_srvs::Empty::Request &req, std_srvs::Empty::Request &res) {
             ros::spinOnce();
             if (stop_called) {
                 stop_called = false;
-                block_comm = false;
+                in_motion = false;
                 return true;
             }
         }
         while (msg_available == 0 || (msg_available == 1 && status == E_CMD_PENDING));
 
-        block_comm = false;
+        in_motion = false;
 
         if (msg_available == 1 && status == E_SUCCESS) {
             ROS_INFO("Home position reached.");
@@ -541,22 +543,17 @@ bool homingSrv(std_srvs::Empty::Request &req, std_srvs::Empty::Request &res) {
     return true;
 }
 
-bool stopSrv(std_srvs::Empty::Request &req, std_srvs::Empty::Request &res)
-{
+bool stopSrv(std_srvs::Empty::Request &req, std_srvs::Empty::Request &res) {
     ROS_WARN("Stop!");
-    
     stop();
-
     // If a motion control command was interrupted, wait for its response
-    if (block_comm) {
+    if (in_motion) {
         ROS_WARN("Waiting for the last motion control command");
         status_t status;
-        while (recv_ack(last_cmd_id, &status) == 0); 
+        while (recv_ack(last_cmd_id, &status) == 0);
+        stop_called = true; // this will abort the last motion control service once stop returns 
     }
-
     ROS_WARN("Stopped.");
-    
-    stop_called = true; // this will abort the last motion control service
     return true;
 }
 
@@ -611,7 +608,7 @@ void timer_cb(const ros::TimerEvent& ev)
     info.acceleration = 0.0;
     info.speed = 0.0;
 
-    if (g_mode_polling && !block_comm) {
+    if (g_mode_polling && !in_motion) {
         const char * state = systemState();
         if (!state)
             return;
@@ -824,7 +821,7 @@ int main( int argc, char **argv )
     ros::init(argc, argv, "wsg50");
     ros::NodeHandle nh("~");
     signal(SIGINT, sigint_handler);
-    block_comm = false;
+    in_motion = false;
     stop_called = false;
 
     component_status = nh.advertise<dnb_msgs::ComponentStatus>("component/status", 1, true);
