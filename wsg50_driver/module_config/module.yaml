@@ -12,7 +12,7 @@ components:
       - datatype: string
         name: size
         namespace: ''
-        default: '110'
+        default: '210'
 nodes:
   - node_callerid: /wsg50_driver
     type: wsg50
