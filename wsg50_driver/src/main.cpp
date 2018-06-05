@@ -140,13 +140,13 @@ void publish_status_and_joint_states(gripper_response info) {
 bool moveSrv(wsg50_common::Move::Request &req, wsg50_common::Move::Response &res) {
     if (in_motion){
         ROS_WARN("Another Motion Control service is already running. Try again later!");
-        res.error = 1;
+        res.error = E_ALREADY_RUNNING;
         return true;
     }
 
     if (req.width < 0.0 || req.width > g_size) {
         ROS_ERROR("Imposible to move to this position. (Width values: [0.0 - %d] ", g_size);
-        res.error = 255;
+        res.error = E_RANGE_ERROR;
         return false;
     }
 
@@ -167,7 +167,7 @@ bool moveSrv(wsg50_common::Move::Request &req, wsg50_common::Move::Response &res
             ros::spinOnce();
 
             if (stop_called) {
-                res.error = 255;
+                res.error = E_CMD_ABORTED;
                 stop_called = false;
                 in_motion = false;
                 return true;
@@ -177,7 +177,7 @@ bool moveSrv(wsg50_common::Move::Request &req, wsg50_common::Move::Response &res
 
         in_motion = false;
 
-        res.error = msg_available == 1? (status == E_SUCCESS? 0 : 255) : 255;
+        res.error = msg_available == -1? 255 : status;
         if (res.error == 0) {
             ROS_INFO("Target position reached");
         } else {
@@ -193,13 +193,13 @@ bool moveSrv(wsg50_common::Move::Request &req, wsg50_common::Move::Response &res
 bool graspSrv(wsg50_common::Move::Request &req, wsg50_common::Move::Response &res){
     if (in_motion){
         ROS_WARN("Another Motion Control service is already running. Try again later!");
-        res.error = 1;
+        res.error = E_ALREADY_RUNNING;
         return true;
     }
 
     if (req.width < 0.0 || req.width > g_size) {
         ROS_ERROR("Imposible to move to this position. (Width values: [0.0 - %d] ", g_size);
-        res.error = 255;
+        res.error = E_RANGE_ERROR;
         return false;
     }
 
@@ -219,7 +219,7 @@ bool graspSrv(wsg50_common::Move::Request &req, wsg50_common::Move::Response &re
             if (msg_available == 1 && status == E_CMD_PENDING) ROS_INFO("Grasping object at %f with %f mm/s.", req.width, req.speed);
             ros::spinOnce();
             if (stop_called) {
-                res.error = 255;
+                res.error = E_CMD_ABORTED;
                 stop_called = false;
                 in_motion = false;
                 return true;
@@ -229,7 +229,7 @@ bool graspSrv(wsg50_common::Move::Request &req, wsg50_common::Move::Response &re
 
         in_motion = false;
 
-        res.error = msg_available == 1? (status == E_SUCCESS? 0 : 255) : 255;
+        res.error = msg_available == -1? 255 : status;
         if (res.error == 0) {
             ROS_INFO("Object grasped correctly.");
             objectGraspped=true;
@@ -395,7 +395,7 @@ bool graspSrv(wsg50_common::Move::Request &req, wsg50_common::Move::Response &re
 bool incrementSrv(wsg50_common::Incr::Request &req, wsg50_common::Incr::Response &res) {
     if (in_motion){
         ROS_WARN("Another Motion Control service is already running. Try again later!");
-        res.error = 1;
+        res.error = E_ALREADY_RUNNING;
         return true;
     }
 
@@ -429,7 +429,7 @@ bool incrementSrv(wsg50_common::Incr::Request &req, wsg50_common::Incr::Response
                 }
                 ros::spinOnce();
                 if (stop_called) {
-                    res.error = 255;
+                    res.error = E_CMD_ABORTED;
                     stop_called = false;
                     in_motion = false;
                     return true;
@@ -439,7 +439,7 @@ bool incrementSrv(wsg50_common::Incr::Request &req, wsg50_common::Incr::Response
 
             in_motion = false;
 
-            res.error = msg_available == 1? (status == E_SUCCESS? 0 : 255) : 255;
+            res.error = msg_available == -1? 255 : status;
             if (res.error == 0) {
                 ROS_INFO("Incremental %s done", req.direction.c_str());
             } else {
@@ -457,13 +457,13 @@ bool incrementSrv(wsg50_common::Incr::Request &req, wsg50_common::Incr::Response
 bool releaseSrv(wsg50_common::Move::Request &req, wsg50_common::Move::Response &res) {
     if (in_motion){
         ROS_WARN("Another Motion Control service is already running. Try again later!");
-        res.error = 1;
+        res.error = E_ALREADY_RUNNING;
         return true;
     }
 
     if (req.width < 0.0 || req.width > g_size) {
         ROS_ERROR("Imposible to move to this position. (Width values: [0.0 - %d] ", g_size);
-        res.error = 255;
+        res.error = E_RANGE_ERROR;
         return false;
     }
 
@@ -483,7 +483,7 @@ bool releaseSrv(wsg50_common::Move::Request &req, wsg50_common::Move::Response &
             if (msg_available == 1 && status == E_CMD_PENDING) ROS_INFO("Releasing to %f position at %f mm/s.", req.width, req.speed);
             ros::spinOnce();
             if (stop_called) {
-                res.error = 255;
+                res.error = E_CMD_ABORTED;
                 stop_called = false;
                 in_motion = false;
                 return true;
@@ -493,7 +493,7 @@ bool releaseSrv(wsg50_common::Move::Request &req, wsg50_common::Move::Response &
 
         in_motion = false;
 
-        res.error = msg_available == 1? (status == E_SUCCESS? 0 : 255) : 255;
+        res.error = msg_available == -1? 255 : status;
         if (res.error == 0) {
             objectGraspped = false;
             ROS_INFO("Object released correctly.");
@@ -531,6 +531,8 @@ bool homingSrv(std_srvs::Empty::Request &req, std_srvs::Empty::Request &res) {
         while (msg_available == 0 || (msg_available == 1 && status == E_CMD_PENDING));
 
         in_motion = false;
+
+        if (msg_available == -1) return false;
 
         if (msg_available == 1 && status == E_SUCCESS) {
             ROS_INFO("Home position reached.");
