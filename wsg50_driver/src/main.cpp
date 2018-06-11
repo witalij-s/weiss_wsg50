@@ -853,7 +853,7 @@ int main( int argc, char **argv )
     double rate, grasping_force;
     bool use_udp = false;
 
-    nh.param("size", size, 110);
+    nh.param("size", size, 210);
     nh.param("ip", ip, std::string("192.168.1.20"));
     nh.param("port", port, 1000);
     nh.param("local_port", local_port, 1501);
@@ -864,9 +864,9 @@ int main( int argc, char **argv )
     nh.param("rate", rate, 5.0); // With custom script, up to 30Hz are possible
     nh.param("grasping_force", grasping_force, 0.0);
 
-    if (size > 110) {
-        ROS_WARN("Gripper size: %d is invalid. Using default size of 110 mm.", size);
-        g_size = 110;
+    if (size != 210 && size != 110) {
+        ROS_WARN("Gripper size: %d is invalid. Using default size of 210 mm.", size);
+        g_size = 210;
     }
     else {
         g_size = size;
