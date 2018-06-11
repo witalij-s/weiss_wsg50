@@ -545,14 +545,36 @@ bool homingSrv(std_srvs::Empty::Request &req, std_srvs::Empty::Request &res) {
 
 bool stopSrv(std_srvs::Empty::Request &req, std_srvs::Empty::Request &res) {
     ROS_WARN("Stop!");
-    stop();
-    // If a motion control command was interrupted, wait for its response
+    
+    // stop();
+    // // If a motion control command was interrupted, wait for its response
+    // if (in_motion) {
+    //     ROS_WARN("Waiting for the last motion control command");
+    //     status_t status;
+    //     if (last_cmd_id == 0x20) {
+    //         while (recv_ack(0x22, &status) == 0);
+    //     } else {
+    //         while (recv_ack(last_cmd_id, &status) == 0);
+    //     }
+    //     stop_called = true; // this will abort the last motion control service once stop returns 
+    // }
+    // else {
+    //     stop();
+    // }
+
     if (in_motion) {
-        ROS_WARN("Waiting for the last motion control command");
         status_t status;
+        // In practice, if a homing command was running, the gripper will not send response of the stop message immediately
+        // & hence response should be ignored
+        stop(last_cmd_id == 0x20); 
+        ROS_WARN("Waiting for the last motion control command");
         while (recv_ack(last_cmd_id, &status) == 0);
         stop_called = true; // this will abort the last motion control service once stop returns 
     }
+    else {
+        stop();
+    }
+
     ROS_WARN("Stopped.");
     return true;
 }

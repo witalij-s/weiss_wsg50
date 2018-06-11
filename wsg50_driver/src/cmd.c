@@ -248,9 +248,24 @@ int cmd_recv_ack ( unsigned char id, unsigned char **response, unsigned int *res
 	if ( res < 0 ) return -1;
 
 	// Check response ID
-	if ( msg.id != id ) {
+	if ( msg.id != id && msg.id != 0x22) {
 		fprintf( stderr, "Response ID (%2x) does not match submitted command ID (%2x)\n", msg.id, id );
 		return -1;
+	} 
+	// Ignore asyncronous responses of the stop command
+	if (msg.id != id && msg.id == 0x22) {
+		// Reuse message struct to receive response
+		memset( &msg, 0, sizeof( msg ) );
+		
+		// Retry to receive response data
+		res = msg_receive_async( &msg );
+		if ( res == 0 ) return 0;
+		if ( res < 0 ) return -1;
+
+		if ( msg.id != id ) {
+		fprintf( stderr, "Response ID (%2x) does not match submitted command ID (%2x)\n", msg.id, id );
+		return -1;
+	} 
 	}
 
 	// Return payload
