@@ -521,12 +521,13 @@ bool homingSrv(std_srvs::Empty::Request &req, std_srvs::Empty::Request &res) {
         do {
             msg_available = recv_ack(0x20, &status);
             if (msg_available == 1 && status == E_CMD_PENDING) ROS_INFO("Homing...");
-            ros::spinOnce();
-            if (stop_called) {
-                stop_called = false;
-                in_motion = false;
-                return true;
-            }
+            // prevent stopping while homing since it causes unexpected behaviour and stopping is not really needed while homing as Pablo mentioned
+            // ros::spinOnce();
+            // if (stop_called) {
+            //     stop_called = false;
+            //     in_motion = false;
+            //     return true;
+            // }
         }
         while (msg_available == 0 || (msg_available == 1 && status == E_CMD_PENDING));
 
