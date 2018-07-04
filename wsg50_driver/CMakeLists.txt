@@ -10,6 +10,7 @@ find_package(catkin REQUIRED COMPONENTS
   std_srvs
   dnb_msgs
   wsg50_common
+  dnb_msgs
 )
 
 catkin_package(
