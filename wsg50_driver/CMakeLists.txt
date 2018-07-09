@@ -8,6 +8,7 @@ find_package(catkin REQUIRED COMPONENTS
   roscpp
   std_msgs
   std_srvs
+  dnb_msgs
   wsg50_common
   dnb_msgs
 )
@@ -67,7 +68,7 @@ endif()
 
 add_executable(wsg50 src/main.cpp ${DRIVER_SOURCES})
 target_link_libraries(wsg50 ${catkin_LIBRARIES})
-add_dependencies(wsg50 wsg50_common_gencpp)
+add_dependencies(wsg50 wsg50_common_generate_messages_cpp)
 
 #add_executable(wsg50_can src/main_can.cpp src/checksum.cpp src/msg.c src/common.cpp src/functions_can.cpp)
 #add_executable(wsg50_can src/main_can.cpp ${DRIVER_SOURCES_CAN})
@@ -86,3 +87,11 @@ install(
 )
 install(DIRECTORY launch DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION})
 install(DIRECTORY module_config DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION})
+
+#############
+## Testing ##
+#############
+#if(CATKIN_ENABLE_TESTING)
+#  find_package(rostest REQUIRED)
+#  add_rostest(test/autotest.test)
+#endif()
