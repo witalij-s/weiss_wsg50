@@ -189,99 +189,101 @@ const char * getStateValues( unsigned char *b ){
 	dbgPrint("b[5] = 0x%x\n", b[5]);
 	*/
 
-	char resp[1024] = "| ";
+    char *resp = (char*)malloc(1024);
 
 	if (b[2] & 0x1){	// D0 ==> LSB
 		//dbgPrint("Fingers Referenced.\n");
-		char aux0[21] = "Fingers Referenced |";
-		strcat(resp, aux0);
+		char aux0[23] = "| Fingers Referenced |";
+		strncpy(resp, aux0, strlen(aux0));
 	}
 	if (b[2] & 0x2){  // D1
 		//dbgPrint("The Fingers are currently moving.\n");
-		char aux1[36]=" The Fingers are currently moving |";
-		strcat(resp, aux1);
+		char aux1[37]="| The Fingers are currently moving |";
+		strncpy(resp, aux1, strlen(aux1));
 	}
 	if (b[2] & 0x4){  // D2
 		//dbgPrint("Axis is blocked in negative moving direction.\n");
-		char aux2[48] =" Axis is blocked in negative moving direction |";
-		strcat(resp, aux2);
+		char aux2[49] ="| Axis is blocked in negative moving direction |";
+		strncpy(resp, aux2, strlen(aux2));
 	}
-     	if (b[2] & 0x8){  // D3
+ 	if (b[2] & 0x8){  // D3
 		//dbgPrint("Axis is blocked in positive moving direction.\n");
-		char aux3[48] =" Axis is blocked in positive moving direction |";
-		strcat(resp, aux3);
+		char aux3[49] ="| Axis is blocked in positive moving direction |";
+		strncpy(resp, aux3, strlen(aux3));
 	}
 	if (b[2] & 0x10){ // D4
 		//dbgPrint("Negative direction soft limit reached.\n");
-		char aux4[42] = " Negative direction soft limit reached |";
-		strcat(resp, aux4);
+		char aux4[43] = "| Negative direction soft limit reached |";
+		strncpy(resp, aux4, strlen(aux4));
 	}
 	if (b[2] & 0x20){ // D5
 		//dbgPrint("Positive direction soft limit reached.\n");
-		char aux5[42] = " Positive direction soft limit reached |";
-		strcat(resp, aux5);
+		char aux5[43] = "| Positive direction soft limit reached |";
+		strncpy(resp, aux5, strlen(aux5));
 	}
 	if (b[2] & 0x40){ // D6
 		//dbgPrint("Axis Stopped.\n");
-		char aux6[18] = " Axis Stopped |";
-		strcat(resp, aux6);
+		char aux6[19] = "| Axis Stopped |";
+		strncpy(resp, aux6, strlen(aux6));
 	}
 	if (b[2] & 0x80){ // D7
 		//dbgPrint("Target Pos reached.\n");
-		char aux7[22] = " Target Pos reached |";
-		strcat(resp, aux7);
+		char aux7[23] = "| Target Pos reached |";
+		strncpy(resp, aux7, strlen(aux7));
 	}
-
 	if (b[3] & 0x1){ // D8
 		//dbgPrint("Overdrive Mode.\n");
-		char aux8[18] = " Overdrive Mode |";
-		strcat(resp, aux8);
+		char aux8[19] = "| Overdrive Mode |";
+		strncpy(resp, aux8, strlen(aux8));
+	}
+	if (b[3] & 0x2){ // D9
+		char aux88[23] = "| Force Control Mode |";
+		strncpy(resp, aux88, strlen(aux88));
 	}
 	if (b[3] & 0x10){ // D12
 		//dbgPrint("Fast Stop.\n");
-		char aux12[13] = " Fast Stop |";
-		strcat(resp, aux12);
+		char aux12[14] = "| Fast Stop |";
+		strncpy(resp, aux12, strlen(aux12));
 	}
 	if (b[3] & 0x20){ // D13
 		//dbgPrint("Temperature Warning.\n");
-		char aux13[23] = " Temperature Warning |";
-		strcat(resp,aux13);
+		char aux13[24] = "| Temperature Warning |";
+		strncpy(resp,aux13, strlen(aux13));
 	}	
 	if (b[3] & 0x40){ // D14
 		//dbgPrint("Temperature Error.\n");
-		char aux14[21]= " Temperature Error |";
-		strcat(resp, aux14);
+		char aux14[22]= "| Temperature Error |";
+		strncpy(resp, aux14, strlen(aux14));
 	}	
 	if (b[3] & 0x80){ // D15
 		//dbgPrint("Power Error.\n");
-		char aux15[15]= " Power Error |";
-		strcat(resp, aux15);
+		char aux15[16]= "| Power Error |";
+		strncpy(resp, aux15, strlen(aux15));
 	}
-
 	if (b[4] & 0x1){  // D16
 		//dbgPrint("Engine Current Error.\n");
-		char aux16[24]= " Engine Current Error |";
-		strcat(resp, aux16);
+		char aux16[25]= "| Engine Current Error |";
+		strncpy(resp, aux16, strlen(aux16));
 	}
 	if (b[4] & 0x2){  // D17
 		//dbgPrint("Finger Fault.\n");
-		char aux17[16] = " Finger Fault |";
-		strcat(resp, aux17);
+		char aux17[17] = "| Finger Fault |";
+		strncpy(resp, aux17, strlen(aux17));
 	}
 	if (b[4] & 0x4){  // D18
 		//dbgPrint("Command Error.\n");
-		char aux18[17] = " Command Error |";
-		strcat(resp, aux18);
+		char aux18[18] = "| Command Error |";
+		strncpy(resp, aux18, strlen(aux18));
 	}
-     	if (b[4] & 0x8){  // D19
+ 	if (b[4] & 0x8){  // D19
 		//dbgPrint("A script is currently running.\n");
-		char aux19[33] = " A script is currently running |";
-		strcat(resp, aux19);
+		char aux19[34] = "| A script is currently running |";
+		strncpy(resp, aux19, strlen(aux19));
 	}
 	if (b[4] & 0x10){ // D20
 		//dbgPrint("Script Error.\n");
-		char aux20[16] = " Script Error |";
-		strcat(resp, aux20);
+		char aux20[17] = "| Script Error |";
+		strncpy(resp, aux20, strlen(aux20));
 	}
 
 	// [D21 - D31] RESERVED

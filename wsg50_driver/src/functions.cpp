@@ -581,6 +581,52 @@ int setGraspingForceLimit( float force )
 ///////////////////
 
 
+// const char * systemState( void ) 
+// {
+// 	status_t status;
+// 	int res;
+// 	unsigned char payload[3];
+// 	unsigned char *resp;
+// 	unsigned int resp_len;
+
+// 	// Don't use automatic update, so the payload bytes are 0.
+// 	memset( payload, 0, 3 );
+
+// 	// Submit command and wait for response. Expecting exactly 4 bytes response payload.
+// 	res = cmd_submit( 0x40, payload, 3, false, &resp, &resp_len);
+// 	if ( res != 6 )
+// 	{
+// 		dbgPrint( "Response payload length doesn't match (is %d, expected 6)\n", res );
+// 		if ( res > 0 ) free( resp );
+// 		return 0;
+// 	}
+
+// 	// Check response status
+// 	status = cmd_get_response_status( resp );
+
+// 	/*
+// 	dbgPrint("LSB -> resp[0]: %x\n", resp[2]);
+// 	dbgPrint("       resp[1]: %x\n", resp[3]);
+// 	dbgPrint("       resp[2]: %x\n", resp[4]);
+// 	dbgPrint("MSB -> resp[3]: %x\n", resp[5]);
+// 	*/
+
+// 	return getStateValues(resp);
+
+// 	if ( status != E_SUCCESS )
+// 	{
+// 		dbgPrint( "Command GET SYSTEM STATE not successful: %s\n", status_to_str( status ) );
+// 		free( resp );
+// 		return 0;
+// 	}
+
+// 	free( resp );
+
+//     return 0;
+
+// 	//return (int) resp[2]; MBJ
+// }
+
 const char * systemState( void ) 
 {
 	status_t status;
@@ -604,15 +650,6 @@ const char * systemState( void )
 	// Check response status
 	status = cmd_get_response_status( resp );
 
-	/*
-	dbgPrint("LSB -> resp[0]: %x\n", resp[2]);
-	dbgPrint("       resp[1]: %x\n", resp[3]);
-	dbgPrint("       resp[2]: %x\n", resp[4]);
-	dbgPrint("MSB -> resp[3]: %x\n", resp[5]);
-	*/
-
-	return getStateValues(resp);
-
 	if ( status != E_SUCCESS )
 	{
 		dbgPrint( "Command GET SYSTEM STATE not successful: %s\n", status_to_str( status ) );
@@ -620,11 +657,7 @@ const char * systemState( void )
 		return 0;
 	}
 
-	free( resp );
-
-    return 0;
-
-	//return (int) resp[2]; MBJ
+    return getStateValues(resp);
 }
 
 
