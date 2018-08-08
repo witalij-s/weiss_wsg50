@@ -175,6 +175,8 @@ bool moveSrv(wsg50_common::Move::Request &req, wsg50_common::Move::Response &res
         }
         while (msg_available == 0 || (msg_available == 1 && status == E_CMD_PENDING));
 
+        ros::Duration(0.1).sleep(); // A small delay to fix the problem with hw-rev. 2 grippers
+
         in_motion = false;
 
         res.error = msg_available == -1? 255 : status;
@@ -227,6 +229,8 @@ bool graspSrv(wsg50_common::Move::Request &req, wsg50_common::Move::Response &re
         }
         while (msg_available == 0 || (msg_available == 1 && status == E_CMD_PENDING));
 
+        ros::Duration(0.1).sleep(); // A small delay to fix the problem with hw-rev. 2 grippers
+
         in_motion = false;
 
         res.error = msg_available == -1? 255 : status;
@@ -242,155 +246,6 @@ bool graspSrv(wsg50_common::Move::Request &req, wsg50_common::Move::Response &re
 
     return true;
 }
-
-// bool incrementSrv(wsg50_common::Incr::Request &req, wsg50_common::Incr::Response &res){
-
-//     if (in_motion){
-//         ROS_WARN("Another Motion Control service is already running. Try again later!");
-//         res.error = 1;
-//         return true;
-//     }
-
-//     if (req.direction == "open") {
-
-//         if (!objectGraspped) {
-
-//             float currentWidth = getOpening();
-//             float nextWidth = currentWidth + req.increment;
-//             if ( (currentWidth < g_size) && nextWidth < g_size ) {
-//                 //grasp(nextWidth, 1);
-//                 move(nextWidth,20, true);
-//                 currentWidth = nextWidth;
-//             } else if( nextWidth >= g_size) {
-//                 //grasp(g_size, 1);
-//                 move(g_size,1, true);
-//                 currentWidth = g_size;
-//             }
-//         } else {
-//             ROS_INFO("Releasing object...");
-//             release(g_size, 20);
-//             objectGraspped = false;
-//         }
-//     } else if (req.direction == "close") {
-
-//         if (!objectGraspped) {
-
-//             float currentWidth = getOpening();
-//             float nextWidth = currentWidth - req.increment;
-
-//             if ( (currentWidth > GRIPPER_MIN_OPEN) && nextWidth > GRIPPER_MIN_OPEN ) {
-//                 //grasp(nextWidth, 1);
-//                 move(nextWidth,20, true);
-//                 currentWidth = nextWidth;
-//             } else if( nextWidth <= GRIPPER_MIN_OPEN) {
-//                 //grasp(GRIPPER_MIN_OPEN, 1);
-//                 move(GRIPPER_MIN_OPEN,1, true);
-//                 currentWidth = GRIPPER_MIN_OPEN;
-//             }
-//         }
-//     }
-//     return true;
-// }
-
-// bool incrementSrv(wsg50_common::Incr::Request &req, wsg50_common::Incr::Response &res) {
-
-//     if (in_motion){
-//         ROS_WARN("Another Motion Control service is already running. Try again later!");
-//         res.error = 1;
-//         return true;
-//     }
-
-//     if (!objectGraspped) {
-//         float currentWidth, nextWidth, speed; 
-//         if (req.direction == "open") {  
-//             currentWidth = getOpening();
-//             ROS_INFO("Current Openening : %f ", currentWidth);  
-//             nextWidth = currentWidth + req.increment;
-//             nextWidth = nextWidth >= g_size? g_size : nextWidth;
-//             ROS_INFO("Next Openening : %f ", nextWidth);  
-//             speed = nextWidth >= g_size? 1 : 20;
-//         }
-//         else if (req.direction == "close") {
-//             currentWidth = getOpening();  
-//             nextWidth = currentWidth - req.increment;
-//             nextWidth = nextWidth <= GRIPPER_MIN_OPEN? GRIPPER_MIN_OPEN : nextWidth;
-//             speed = nextWidth <= GRIPPER_MIN_OPEN? 1 : 20;
-//         }
-
-//         if (req.direction == "open" || req.direction == "close") {
-//             // Incremental moving asnchronously while spinning to check for stop command
-//             if (move_async(nextWidth, speed, true) == 0) {
-//                 ROS_INFO("Incremental %sing of %f mm.", req.direction.c_str(), req.increment);
-//                 in_motion = true;
-//                 last_cmd_id = 0x21;
-
-//                 status_t status;
-//                 int msg_available = 0; // 0 when no msg available, 1 when msg is available and correct, -1 on error
-//                 do {
-//                     msg_available = recv_ack(0x21, &status);
-//                     ros::spinOnce();
-//                 }
-//                 while (msg_available == 0 || (msg_available == 1 && status == E_CMD_PENDING));
-
-//                 in_motion = false;
-
-//                 res.error = msg_available == 1? (status == E_SUCCESS? 0 : 255) : 255;
-//                 if (res.error == 0) {
-//                     ROS_INFO("Incremental %s done", req.direction.c_str());
-//                 } else {
-//                     ROS_ERROR("Failed while move incrementally : %s", status_to_str(status));
-//                 }
-//             }
-//             else {
-//                 res.error = 255;
-//             }
-//         }
-//     }
-//     else {
-
-//         if (req.direction == "open") {
-//             // Releasing asnchronously while spinning to check for stop command
-//             if (release_async(g_size, 20) == 0) {
-//                 ROS_INFO("Releasing object...");
-//                 in_motion = true;
-//                 last_cmd_id = 0x21;
-
-//                 status_t status;
-//                 int msg_available = 0; // 0 when no msg available, 1 when msg is available and correct, -1 on error
-//                 do {
-//                     msg_available = recv_ack(0x26, &status);
-//                     ros::spinOnce();
-//                     if (stop_called) {
-//                         res.error = 255;
-//                         stop_called = false;
-//                         in_motion = false;
-//                         return true;
-//                     }
-//                 }
-//                 while (msg_available == 0 || (msg_available == 1 && status == E_CMD_PENDING));
-
-//                 in_motion = false;
-
-//                 res.error = msg_available == 1? (status == E_SUCCESS? 0 : 255) : 255;
-//                 if (res.error == 0) {
-//                     objectGraspped = false;
-//                     ROS_INFO("Object successfully released while moving incrementally");
-//                 } else {
-//                     ROS_ERROR("Failed to release object while moving incrementally: %s", status_to_str(status));
-//                 }
-//             }else {
-//                 res.error = 255;
-//             }
-//         }
-
-//         if (req.direction == "close"){
-//                 ROS_ERROR("Cannot close while an object is graspped");
-//                 res.error = 255;
-//         }
-//     }
-
-//     return true;
-// }
 
 bool incrementSrv(wsg50_common::Incr::Request &req, wsg50_common::Incr::Response &res) {
     if (in_motion){
@@ -436,6 +291,8 @@ bool incrementSrv(wsg50_common::Incr::Request &req, wsg50_common::Incr::Response
                 }
             }
             while (msg_available == 0 || (msg_available == 1 && status == E_CMD_PENDING));
+
+            ros::Duration(0.1).sleep(); // A small delay to fix the problem with hw-rev. 2 grippers
 
             in_motion = false;
 
@@ -491,6 +348,8 @@ bool releaseSrv(wsg50_common::Move::Request &req, wsg50_common::Move::Response &
         }
         while (msg_available == 0 || (msg_available == 1 && status == E_CMD_PENDING));
 
+        ros::Duration(0.1).sleep(); // A small delay to fix the problem with hw-rev. 2 grippers
+
         in_motion = false;
 
         res.error = msg_available == -1? 255 : status;
@@ -521,15 +380,10 @@ bool homingSrv(std_srvs::Empty::Request &req, std_srvs::Empty::Request &res) {
         do {
             msg_available = recv_ack(0x20, &status);
             if (msg_available == 1 && status == E_CMD_PENDING) ROS_INFO("Homing...");
-            // prevent stopping while homing since it causes unexpected behaviour and stopping is not really needed while homing as Pablo mentioned
-            // ros::spinOnce();
-            // if (stop_called) {
-            //     stop_called = false;
-            //     in_motion = false;
-            //     return true;
-            // }
         }
         while (msg_available == 0 || (msg_available == 1 && status == E_CMD_PENDING));
+
+        ros::Duration(0.1).sleep(); // A small delay to fix the problem with hw-rev. 2 grippers
 
         in_motion = false;
 
@@ -548,22 +402,6 @@ bool homingSrv(std_srvs::Empty::Request &req, std_srvs::Empty::Request &res) {
 
 bool stopSrv(std_srvs::Empty::Request &req, std_srvs::Empty::Request &res) {
     ROS_WARN("Stop!");
-    
-    // stop();
-    // // If a motion control command was interrupted, wait for its response
-    // if (in_motion) {
-    //     ROS_WARN("Waiting for the last motion control command");
-    //     status_t status;
-    //     if (last_cmd_id == 0x20) {
-    //         while (recv_ack(0x22, &status) == 0);
-    //     } else {
-    //         while (recv_ack(last_cmd_id, &status) == 0);
-    //     }
-    //     stop_called = true; // this will abort the last motion control service once stop returns 
-    // }
-    // else {
-    //     stop();
-    // }
 
     if (in_motion) {
         status_t status;
@@ -581,6 +419,30 @@ bool stopSrv(std_srvs::Empty::Request &req, std_srvs::Empty::Request &res) {
     ROS_WARN("Stopped.");
     return true;
 }
+
+// bool stopSrv(std_srvs::Empty::Request &req, std_srvs::Empty::Request &res) {
+//     ROS_WARN("Stop!");
+    
+//     stop();
+//     // If a motion control command was interrupted, wait for its response
+//     if (in_motion) {
+//         ROS_WARN("Waiting for the last motion control command");
+//         status_t status;
+//         if (last_cmd_id == 0x20) {
+//             while (recv_ack(0x22, &status) == 0);
+//         } else {
+//             while (recv_ack(last_cmd_id, &status) == 0);
+//         }
+//         stop_called = true; // this will abort the last motion control service once stop returns 
+//     }
+//     else {
+//         stop();
+//     }
+
+//     ROS_WARN("Stopped.");
+//     return true;
+// }
+
 
 bool setAccSrv(wsg50_common::Conf::Request &req, wsg50_common::Conf::Response &res)
 {
