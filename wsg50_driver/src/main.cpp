@@ -50,6 +50,7 @@
 #include "wsg50/common.h"
 #include "wsg50/cmd.h"
 #include "wsg50/msg.h"
+#include "wsg50/tcp.h"
 #include "wsg50/functions.h"
 
 #include <ros/ros.h>
@@ -87,6 +88,8 @@ bool objectGraspped;
 bool in_motion;
 unsigned char last_cmd_id;
 bool stop_called;
+
+const float timeout_commands = 10.0;
 
 ros::Publisher g_pub_state, g_pub_joint, g_pub_moving;
 ros::Publisher component_status;
@@ -138,6 +141,7 @@ void publish_status_and_joint_states(gripper_response info) {
 }
 
 bool moveSrv(wsg50_common::Move::Request &req, wsg50_common::Move::Response &res) {
+
     if (in_motion){
         ROS_WARN("Another Motion Control service is already running. Try again later!");
         res.error = E_ALREADY_RUNNING;
@@ -161,7 +165,10 @@ bool moveSrv(wsg50_common::Move::Request &req, wsg50_common::Move::Response &res
 
         status_t status;
         int msg_available = 0; // 0 when no msg available, 1 when msg is available and correct, -1 on error
+
+        ros::Time begin = ros::Time::now();
         do {
+
             msg_available = recv_ack(0x21, &status);
             if (msg_available == 1 && status == E_CMD_PENDING) ROS_INFO("Moving to %f position at %f mm/s.", req.width, req.speed);
             ros::spinOnce();
@@ -172,6 +179,13 @@ bool moveSrv(wsg50_common::Move::Request &req, wsg50_common::Move::Response &res
                 in_motion = false;
                 return true;
             }
+
+            // After 10 seconds, exit
+            if ((ros::Time::now() - begin).toSec() > timeout_commands){
+                //close( conn.sock );
+                quit("Failed to read data from TCP socket");
+            }
+
         }
         while (msg_available == 0 || (msg_available == 1 && status == E_CMD_PENDING));
 
@@ -216,6 +230,8 @@ bool graspSrv(wsg50_common::Move::Request &req, wsg50_common::Move::Response &re
 
         status_t status;
         int msg_available = 0; // 0 when no msg available, 1 when msg is available and correct, -1 on error
+
+        ros::Time begin = ros::Time::now();
         do {
             msg_available = recv_ack(0x25, &status);
             if (msg_available == 1 && status == E_CMD_PENDING) ROS_INFO("Grasping object at %f with %f mm/s.", req.width, req.speed);
@@ -225,6 +241,11 @@ bool graspSrv(wsg50_common::Move::Request &req, wsg50_common::Move::Response &re
                 stop_called = false;
                 in_motion = false;
                 return true;
+            }
+            // After 10 seconds, exit
+            if ((ros::Time::now() - begin).toSec() > timeout_commands){
+                //close( conn.sock );
+                quit("Failed to read data from TCP socket");
             }
         }
         while (msg_available == 0 || (msg_available == 1 && status == E_CMD_PENDING));
@@ -277,6 +298,7 @@ bool incrementSrv(wsg50_common::Incr::Request &req, wsg50_common::Incr::Response
 
             status_t status;
             int msg_available = 0; // 0 when no msg available, 1 when msg is available and correct, -1 on error
+            ros::Time begin = ros::Time::now();
             do {
                 msg_available = recv_ack(0x21, &status);
                 if (msg_available == 1 && status == E_CMD_PENDING) {
@@ -288,6 +310,11 @@ bool incrementSrv(wsg50_common::Incr::Request &req, wsg50_common::Incr::Response
                     stop_called = false;
                     in_motion = false;
                     return true;
+                }
+                // After 10 seconds, exit
+                if ((ros::Time::now() - begin).toSec() > timeout_commands){
+                    //close( conn.sock );
+                    quit("Failed to read data from TCP socket");
                 }
             }
             while (msg_available == 0 || (msg_available == 1 && status == E_CMD_PENDING));
@@ -335,6 +362,7 @@ bool releaseSrv(wsg50_common::Move::Request &req, wsg50_common::Move::Response &
 
         status_t status;
         int msg_available = 0; // 0 when no msg available, 1 when msg is available and correct, -1 on error
+        ros::Time begin = ros::Time::now();
         do {
             msg_available = recv_ack(0x26, &status);
             if (msg_available == 1 && status == E_CMD_PENDING) ROS_INFO("Releasing to %f position at %f mm/s.", req.width, req.speed);
@@ -344,6 +372,11 @@ bool releaseSrv(wsg50_common::Move::Request &req, wsg50_common::Move::Response &
                 stop_called = false;
                 in_motion = false;
                 return true;
+            }
+            // After 10 seconds, exit
+            if ((ros::Time::now() - begin).toSec() > timeout_commands){
+                //close( conn.sock );
+                quit("Failed to read data from TCP socket");
             }
         }
         while (msg_available == 0 || (msg_available == 1 && status == E_CMD_PENDING));
@@ -377,9 +410,15 @@ bool homingSrv(std_srvs::Empty::Request &req, std_srvs::Empty::Request &res) {
         last_cmd_id = 0x20;
         status_t status;
         int msg_available = 0; // 0 when no msg available, 1 when msg is available and correct, -1 on error
+        ros::Time begin = ros::Time::now();
         do {
             msg_available = recv_ack(0x20, &status);
             if (msg_available == 1 && status == E_CMD_PENDING) ROS_INFO("Homing...");
+            // After 10 seconds, exit
+            if ((ros::Time::now() - begin).toSec() > timeout_commands){
+                //close( conn.sock );
+                quit("Failed to read data from TCP socket");
+            }
         }
         while (msg_available == 0 || (msg_available == 1 && status == E_CMD_PENDING));
 
