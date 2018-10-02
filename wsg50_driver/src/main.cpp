@@ -89,7 +89,7 @@ bool in_motion;
 unsigned char last_cmd_id;
 bool stop_called;
 
-const float timeout_commands = 10.0;
+const float timeout_commands = 30.0;
 
 ros::Publisher g_pub_state, g_pub_joint, g_pub_moving;
 ros::Publisher component_status;
@@ -838,7 +838,12 @@ int main( int argc, char **argv )
         if (g_mode_script || g_mode_periodic)
             g_pub_moving = nh.advertise<std_msgs::Bool>("moving", 10);
 
+        sleep(1);
+
         ack_fault();
+
+        sleep(1);
+
         ROS_INFO("Ready to use, homing now...");
         homing();
 
@@ -859,6 +864,8 @@ int main( int argc, char **argv )
             tmr = nh.createTimer(ros::Duration(1.0/rate), timer_cb);
         if (g_mode_periodic)
             th = std::thread(read_thread, (int)(1000.0/rate));
+
+        sleep(5);
 
         ros::spin();
 
