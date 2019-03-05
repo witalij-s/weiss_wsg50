@@ -2,8 +2,10 @@
 <launch>  
   <arg name="ip" default="192.168.1.20"/>  
   <arg name="size" default="110"/>
+  <arg name="gcl" default="false"/>
 
-  <include file="$(find wsg50_driver)/launch/wsg50.launch">
+  <!-- Binary protocol -->
+  <include unless="$(arg gcl)" file="$(find wsg50_driver)/launch/wsg50.launch">
       <arg name="size" value="$(arg size)"/>
       <arg name="protocol" value="tcp"/>
       <arg name="ip" value="$(arg ip)"/>
@@ -11,7 +13,12 @@
       <arg name="rate" value="5"/>
   </include>
 
-    <node name="register_wsg50_driver" pkg="dnb_component_manager" type="register.py"
-args="$(find wsg50_driver)/module_config/module.yaml" />
+  <!-- Text based protocol -->
+  <include if="$(arg gcl)" name="wsg50_driver" pkg="wsg50_driver" type="gcl_tcp_driver.py" output="screen" respawn="true" respawn_delay="5">
+      <param name="ip" value="$(arg ip)"/>
+      <param name="port" value="$(arg port)"/>
+  </include>  
+
+  <node name="register_wsg50_driver" pkg="dnb_component_manager" type="register.py" args="$(find wsg50_driver)/module_config/module.yaml" />
 
 </launch>

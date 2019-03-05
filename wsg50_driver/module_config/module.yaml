@@ -16,6 +16,12 @@ configuration:
     description: 'The Size of the Gripper'
     datatype: string
     default: '210'
+  - id: gcl
+    namespace: ''
+    name: 'Use GCL Text protocol'
+    description: 'Up from firware version 4.x it is possible to use text based protocol'
+    datatype: bool
+    default: 'false'
 nodes:
   - node_callerid: /wsg50_driver
     type: wsg50
