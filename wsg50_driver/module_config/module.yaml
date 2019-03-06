@@ -6,20 +6,26 @@ roslaunch: start.launch
 configuration:
   - id: ip
     namespace: ''
-    name: 'Gripper IP'
-    description: 'IP Adress of the Gripper'
+    name: 'IP'
+    description: 'IP Adress of the Gripper.'
     datatype: string
     default: '172.31.1.20'
+  - id: port
+    namespace: ''
+    name: 'Port'
+    description: 'Port Adress of the Gripper.'
+    datatype: string
+    default: '1000'
   - id: size
     namespace: ''
-    name: 'Gripper Size'
-    description: 'The Size of the Gripper'
+    name: 'Gripper Width'
+    description: 'The width of the Gripper.'
     datatype: string
     default: '210'
   - id: gcl
     namespace: ''
-    name: 'Use GCL Text protocol'
-    description: 'Up from firware version 4.x it is possible to use text based protocol'
+    name: 'Use GCL Protocol'
+    description: 'Up from firware version 4.x it is necessary to use the text based GCL protocol.'
     datatype: bool
     default: 'false'
 nodes:
