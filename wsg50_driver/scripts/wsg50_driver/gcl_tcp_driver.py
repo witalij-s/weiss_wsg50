@@ -6,10 +6,7 @@
 # Interface documentation: https://schunk.com/fileadmin/pim/docs/IM0022534.PDF
 
 # TODO:
-# - ip and port as parameters
 # - socket reconnection
-# - test FSTOP instead of STOP, because STOP blocks the gripper for some seconds after
-# - clear if mark component as error is a desired behaviour in case of false command -> this will lead to production stop
 
 import re 			# Regular expresions for parsing commands
 import sys			# For program exiting
@@ -17,6 +14,7 @@ import threading	# Events to notify when a command finishes with error or no err
 import thread 		# To run new threads
 import socket 		# Socket communication
 import rospy		# ROS api
+import time
 
 # ROS Communication messages
 from dnb_msgs.msg import *
@@ -25,7 +23,12 @@ from std_srvs.srv import *
 from wsg50_common.msg import *
 from wsg50_common.srv import *
 
-debug = False # Extended verbose
+debug = False 		# Extended verbose
+debug_states = True
+autorelease = True 	# Execute release automatically before each grasp
+rate_hz = 50 		# Hz for publishing information and autosend from gripper
+timeout_wait = 60 	# To consider a command as fail, very slow motions can timeout it
+fast_stop = True 	# Use FASTSTOP command instead of STOP, which leads the gripper to error. It works better with FASTSTOP
 
 # -----------------------------------------------------------------------------
 # Data model containing current Gripper state
@@ -46,7 +49,7 @@ class GripperState():
 	# Return True or False if gripper is in error
 	# This function only considers state for the evaluation, not the event_err flag
 	def is_error(self):
-		return self.state == 7 or self.event_err.is_set()
+		return self.state == 7 or self.event_err.is_set()	
 
 	# Returns 1 if error, 0 if not
 	def get_error_code(self):
@@ -62,6 +65,7 @@ class ControlComm():
 	socklock = threading.Lock()	# socket lock
 	state = GripperState()		# Current gripper state
 	spinner = None				# Spinner function (main loop). Needed to have just one running thread
+	spinner_info = None			# Spinner function for publishing Ros information
 	interface = None			# ROS accesor object
 
 	# Connection function, establish a connection with the gripper
@@ -69,23 +73,30 @@ class ControlComm():
 	def connect(cls):
 		ip = rospy.get_param('~ip', "192.168.0.20" ) # IP and port from ROS parameters
 		port = int(rospy.get_param('~port', 1000))
+		rospy.loginfo("WSG Driver: connecting with " + ip + ":" + str(port))
 		try:
 			with cls.socklock:
 				cls.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 				cls.sock.settimeout(1) # 1 Second to consider connection lost
 				cls.sock.connect((ip, port))
+			# Start spinner only once
 			if not cls.spinner:
 				cls.spinner = thread.start_new_thread(cls.spin, ())
+			if not cls.spinner_info: 
+				cls.spinner_info = thread.start_new_thread(cls.spin_info, ())
+			rospy.loginfo("WSG Driver: connected to " + ip + ":" + str(port))
 			return True
 		except Exception as e:
-			rospy.logerr("WSG50 driver error: " + str(e))
+			rospy.logerr("WSG driver error: " + str(e))
 			cls.sock = None
+			rospy.loginfo("WSG Driver: connection error.")
 			return False
 
 	# Asynchronous main loop
 	@classmethod
 	def spin(cls):
 		while not rospy.is_shutdown():
+
 			try:
 				packet = cls.sock.recv(4096)				# Wait form a new TCP packet, it can contain more than 1 command
 				for packet in str(packet).splitlines(True): # Divide lines for individual commands
@@ -105,7 +116,10 @@ class ControlComm():
 					if r: cls.state.force = float(v[0])
 					# ---------------------------------------------------------------------------------
 					r, v = cls.parse_command(packet, "@GRIPSTATE=int")	# Asynchronous update from gripper state
-					if r: cls.state.state = int(v[0])
+					if r: 
+						if debug_states: 
+							if int(v[0]) != cls.state.state: rospy.logerr(cls.state.state) # Print state changes
+						cls.state.state = int(v[0])
 					# ---------------------------------------------------------------------------------
 					r, v = cls.parse_command(packet, "FIN.*") # Regular expression to indicate the correct end of any command
 					if r: cls.state.event_fin.set()
@@ -117,18 +131,26 @@ class ControlComm():
 					# ---------------------------------------------------------------------------------
 
 					if cls.state.is_error():
-						if debug: rospy.logerr("WSG50 driver: gripper achieved error state")
+						if debug: rospy.logerr("WSG driver: gripper achieved error state")
 						cls.state.event_fin.set()
 					else:
 						cls.state.event_no_error.set()
-
-					# Publish ROS d&b component status topic
-					if cls.interface: cls.interface.publish_component_status(cls.state.is_error())
 					
 			except socket.timeout:
 				pass # Timeout is consider no error, because we don't want infinite wait at recv
 			except Exception as e:
-				rospy.logerr("WSG50 driver error: " + str(e)) # TODO: reconnect here
+				rospy.logerr("WSG driver error: " + str(e)) # TODO: reconnect here
+				cls.connect() # Try to stablish the connection again
+
+	@classmethod
+	def spin_info(cls):
+		rate = rospy.Rate(rate_hz)
+		while not rospy.is_shutdown():
+			# Publish ROS d&b component status topic
+			if cls.interface: cls.interface.publish_component_status(cls.state.is_error())
+			if cls.interface: cls.interface.publish_gripper_status(cls.state)
+			rate.sleep()
+
 
 	# Sends a command to the gripper without waiting for any response
 	# Command is a string command
@@ -141,7 +163,8 @@ class ControlComm():
 				cls.sock.send((command + "\n").encode('ascii'))
 				return True
 			except Exception as e:
-				rospy.logerr("WSG50 driver error: " + str(e))
+				rospy.logerr("WSG driver error: " + str(e))
+				cls.connect() # try to stablish the connection again
 				return False
 
 	# This class sends the command and waits until the given answer is received or error
@@ -151,8 +174,10 @@ class ControlComm():
 		cls.state.event_fin.clear()
 		cls.state.event_err.clear()
 		if not cls.send_without_response(command): return False
-		cls.state.event_fin.wait()
-		return not cls.state.is_error()
+		if not cls.state.event_fin.wait(timeout_wait): return False
+		in_error = cls.state.is_error()
+		cls.state.event_err.clear()
+		return not in_error
 
 	# Needed to publish component status, and in the future pose, speed, force, etc.
 	@classmethod
@@ -192,6 +217,7 @@ class Interface:
 		self.srv_set_acceleration 	= rospy.Service('~set_acceleration', 	Conf, 	self.callback_set_acceleration)
 		self.srv_set_force 			= rospy.Service('~set_force', 			Conf, 	self.callback_set_force)
 		self.pub_component_status 	= rospy.Publisher('~component/status', 	ComponentStatus, queue_size=1, latch=True) # d&b component status topic
+		self.pub_gripper_status 	= rospy.Publisher('~status',			Status,	queue_size=1)
 
 	# Error quitting
 	# This function resets any error. It returns true if error was able to be cleared
@@ -213,11 +239,22 @@ class Interface:
 	# Grip. Interface is ROS message
 	def callback_grasp(self, req):
 		self.reset_error()
-		if ControlComm.state.target_force:
-			ControlComm.send_and_wait_for_fin("GRIP(" + str(ControlComm.state.target_force) + "," + str(req.width) + "," + str(req.speed) + ")")
-			return MoveResponse(ControlComm.state.get_error_code())
+
+		# Autorelease just in case something was gripped before
+		if ControlComm.state.position:
+			if autorelease: self.callback_release(MoveRequest(ControlComm.state.position,req.speed))
 		else:
-			rospy.logerr("WSG50 driver: attemping to grasp without first providing force")
+			rospy.logerr("WSG driver: no prior position information. Check gripper connection")
+			return MoveResponse(1)
+
+		if ControlComm.state.target_force:
+			if ControlComm.send_and_wait_for_fin("GRIP(" + str(ControlComm.state.target_force) + "," + str(req.width) + "," + str(req.speed) + ")"):
+				return MoveResponse(0)
+			else:
+				# err -> produces False if part not gripped
+				return MoveResponse(1)
+		else:
+			rospy.logerr("WSG driver: attemping to grasp without first providing force")
 			return MoveResponse(1)
 
 	# Release gripper, a part should be gripped before. Interface is ROS message
@@ -261,13 +298,17 @@ class Interface:
 
 	# Call inmediatelly stop of the gripper. Interface is ROS message
 	def callback_stop(self, req):
-		ControlComm.send_without_response("STOP()")
+		if fast_stop: 
+			ControlComm.send_without_response("FASTSTOP()") # This one is working better
+		else:
+			ControlComm.send_without_response("STOP()")
 		self.reset_error()
 		return EmptyResponse()
 
 	# Set the acceleration as internal driver variable. Interface is ROS message
 	def callback_set_acceleration(self, req):
 		ControlComm.state.target_acceleration = req.val
+		rospy.logerr("WSG Driver: given acceleration ignored, internal acceleration used")
 		return ConfResponse(0)
 
 	# Set the force as internal driver variable. Interface is ROS message
@@ -285,12 +326,23 @@ class Interface:
 			cm_status.status_id = ComponentStatus().RUNNING
 		self.pub_component_status.publish(cm_status)
 
+	# Publish gripper status topic
+	def publish_gripper_status(self, state):
+		status_msg = Status()
+		if state.state: 	status_msg.status = str(state.state)
+		if state.position: 	status_msg.width = state.position
+		if state.speed:		status_msg.speed = state.speed
+		if state.force:		status_msg.force = state.force
+		self.pub_gripper_status.publish(status_msg)
+
 
 def startup(): # Activate auto receiving position, speed, force and gripstate. See gripper documentation for more information
-	ControlComm.send_without_response("AUTOSEND(\"POS\",50)")
-	ControlComm.send_without_response("AUTOSEND(\"SPEED\",50)")
-	ControlComm.send_without_response("AUTOSEND(\"FORCE\",50)")
-	ControlComm.send_without_response("AUTOSEND(\"GRIPSTATE\",50)")
+	str_rate = str(rate_hz) # 50 Hz by default
+	ControlComm.send_without_response("FSACK()")
+	ControlComm.send_without_response("AUTOSEND(\"POS\"," + str_rate + ")")
+	ControlComm.send_without_response("AUTOSEND(\"SPEED\"," + str_rate + ")")
+	ControlComm.send_without_response("AUTOSEND(\"FORCE\"," + str_rate + ")")
+	ControlComm.send_without_response("AUTOSEND(\"GRIPSTATE\"," + str_rate + ")")
 
 if __name__ == '__main__':
 	rospy.init_node('wsg50_driver') # Initialise ROS node
