@@ -23,12 +23,12 @@ from std_srvs.srv import *
 from wsg50_common.msg import *
 from wsg50_common.srv import *
 
-debug = False 		# Extended verbose
-debug_states = True
-autorelease = True 	# Execute release automatically before each grasp
-rate_hz = 50 		# Hz for publishing information and autosend from gripper
-timeout_wait = 60 	# To consider a command as fail, very slow motions can timeout it
-fast_stop = True 	# Use FASTSTOP command instead of STOP, which leads the gripper to error. It works better with FASTSTOP
+debug = False 			# Extended verbose
+debug_states = False 	# Show gripper states changes
+autorelease = True 		# Execute release automatically before each grasp
+rate_hz = 50 			# Hz for publishing information and autosend from gripper
+timeout_wait = 60 		# To consider a command as fail, very slow motions can timeout it
+fast_stop = True 		# Use FASTSTOP command instead of STOP, which leads the gripper to error. It works better with FASTSTOP
 
 # -----------------------------------------------------------------------------
 # Data model containing current Gripper state
@@ -249,7 +249,7 @@ class Interface:
 
 		if ControlComm.state.target_force:
 			if ControlComm.send_and_wait_for_fin("GRIP(" + str(ControlComm.state.target_force) + "," + str(req.width) + "," + str(req.speed) + ")"):
-				return MoveResponse(0)
+				return MoveResponse(ControlComm.state.get_error_code())
 			else:
 				# err -> produces False if part not gripped
 				return MoveResponse(1)
@@ -262,8 +262,10 @@ class Interface:
 		self.reset_error()
 		if ControlComm.state.position:
 			distance = req.width - ControlComm.state.position
-			ControlComm.send_and_wait_for_fin("RELEASE(" + str(distance) + "," + str(req.speed) + ")")
-			return MoveResponse(ControlComm.state.get_error_code())
+			if ControlComm.send_and_wait_for_fin("RELEASE(" + str(distance) + "," + str(req.speed) + ")"):
+				return MoveResponse(ControlComm.state.get_error_code())
+			else:
+				return MoveResponse(1)
 		else:
 			return MoveResponse(1)
 
@@ -272,10 +274,15 @@ class Interface:
 	def callback_move(self, req):
 		self.reset_error()
 		if req.speed:
-			ControlComm.send_and_wait_for_fin("MOVE(" + str(req.width) + "," + str(req.speed) + ")")
-		else:
-			ControlComm.send_and_wait_for_fin("MOVE(" + str(req.width) + ")")
-		return MoveResponse(ControlComm.state.get_error_code())
+			if ControlComm.send_and_wait_for_fin("MOVE(" + str(req.width) + "," + str(req.speed) + ")"):
+				return MoveResponse(ControlComm.state.get_error_code())
+			else:
+				return MoveResponse(1)
+		else:	
+			if ControlComm.send_and_wait_for_fin("MOVE(" + str(req.width) + ")"):
+				return MoveResponse(ControlComm.state.get_error_code())
+			else:
+				return MoveResponse(1)
 
 	# Interface is ROS message
 	# req.direction can be open or close
