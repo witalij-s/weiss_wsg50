@@ -747,7 +747,7 @@ int main( int argc, char **argv )
     ros::init(argc, argv, "wsg50");
     ros::NodeHandle nh("~");
     signal(SIGINT, sigint_handler);
-    in_motion = false;
+    in_motion = false; 
     stop_called = false;
 
     component_status = nh.advertise<dnb_msgs::ComponentStatus>("component/status", 1, true);
