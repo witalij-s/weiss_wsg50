@@ -248,7 +248,6 @@ class Interface:
 
 	# Grip. Interface is ROS message
 	def callback_grasp(self, req):
-		self.reset_error()
 
 		# Autorelease just in case something was gripped before
 		if ControlComm.state.position:
@@ -256,6 +255,8 @@ class Interface:
 		else:
 			rospy.logerr("WSG driver: no prior position information. Check gripper connection")
 			return MoveResponse(1)
+
+		self.reset_error()
 
 		if ControlComm.state.target_force:
 			if ControlComm.send_and_wait_for_fin("GRIP(" + str(ControlComm.state.target_force) + "," + str(req.width) + "," + str(req.speed) + ")"):
@@ -282,7 +283,16 @@ class Interface:
 	# Move the gripepr to a given position. Returns error = 0 if no error or error = 1 in case of any kind of error
 	# Interface is ROS message
 	def callback_move(self, req):
+
+		# Autorelease just in case something was gripped before
+		if ControlComm.state.position:
+			if autorelease: self.callback_release(MoveRequest(ControlComm.state.position, 50)) # 50 mm/s because this callback can have empty speed
+		else:
+			rospy.logerr("WSG driver: no prior position information. Check gripper connection")
+		return MoveResponse(1)
+
 		self.reset_error()
+
 		if req.speed:
 			if ControlComm.send_and_wait_for_fin("MOVE(" + str(req.width) + "," + str(req.speed) + ")"):
 				return MoveResponse(ControlComm.state.get_error_code())
