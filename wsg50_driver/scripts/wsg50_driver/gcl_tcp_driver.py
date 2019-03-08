@@ -251,7 +251,7 @@ class Interface:
 
 		# Autorelease just in case something was gripped before
 		if ControlComm.state.position:
-			if autorelease: self.callback_release(MoveRequest(ControlComm.state.position,req.speed))
+			if autorelease: self.callback_move(MoveRequest(ControlComm.state.position,req.speed))
 		else:
 			rospy.logerr("WSG driver: no prior position information. Check gripper connection")
 			return MoveResponse(1)
@@ -285,11 +285,11 @@ class Interface:
 	def callback_move(self, req):
 
 		# Autorelease just in case something was gripped before
-		if ControlComm.state.position:
-			if autorelease: self.callback_release(MoveRequest(ControlComm.state.position, 50)) # 50 mm/s because this callback can have empty speed
-		else:
-			rospy.logerr("WSG driver: no prior position information. Check gripper connection")
-		return MoveResponse(1)
+		# if ControlComm.state.position:
+		#	if autorelease: self.callback_move(MoveRequest(ControlComm.state.position, 50)) # 50 mm/s because this callback can have empty speed
+		# else:
+		#	rospy.logerr("WSG driver: no prior position information. Check gripper connection")
+		# return MoveResponse(1)
 
 		self.reset_error()
 
