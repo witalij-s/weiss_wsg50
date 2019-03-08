@@ -42,6 +42,8 @@ class GripperState():
 	target_force = None			# Because we are using an older interface, first force has to be set as default value for next move, grasp etc. calls
 	target_acceleration = None 	# Same for acceleration
 
+	component_status_error = False
+
 	event_fin = threading.Event() 		# Is set after receiving FIN answer (end of command)
 	event_no_error = threading.Event() 	# Is set when there is no error (this solves a race condition if robot is alreay in error when starting a command)
 	event_err = threading.Event() 		# Set when error answer (ERR) comes instead of FIN. Needs to be manually reset
@@ -79,6 +81,10 @@ class ControlComm():
 				cls.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 				cls.sock.settimeout(1) # 1 Second to consider connection lost
 				cls.sock.connect((ip, port))
+
+			# HERE SET COMPONENT STATUS AS OK -> state.component_error == TRUE
+			cls.state.component_status_error = False
+
 			# Start spinner only once
 			if not cls.spinner:
 				cls.spinner = thread.start_new_thread(cls.spin, ())
@@ -136,10 +142,14 @@ class ControlComm():
 					else:
 						cls.state.event_no_error.set()
 					
-			except socket.timeout:
-				pass # Timeout is consider no error, because we don't want infinite wait at recv
+			#except socket.timeout:
+			#	pass # Timeout is consider no error, because we don't want infinite wait at recv --> FOR CM
 			except Exception as e:
 				rospy.logerr("WSG driver error: " + str(e)) # TODO: reconnect here
+
+				# HERE SET COMPONENT STATUS AS ERROR -> state.component_error == TRUE
+				cls.state.component_status_error = True
+
 				cls.connect() # Try to stablish the connection again
 
 	@classmethod
@@ -147,7 +157,7 @@ class ControlComm():
 		rate = rospy.Rate(rate_hz)
 		while not rospy.is_shutdown():
 			# Publish ROS d&b component status topic
-			if cls.interface: cls.interface.publish_component_status(cls.state.is_error())
+			if cls.interface: cls.interface.publish_component_status(cls.state.component_status_error)
 			if cls.interface: cls.interface.publish_gripper_status(cls.state)
 			rate.sleep()
 
@@ -238,14 +248,15 @@ class Interface:
 
 	# Grip. Interface is ROS message
 	def callback_grasp(self, req):
-		self.reset_error()
 
 		# Autorelease just in case something was gripped before
 		if ControlComm.state.position:
-			if autorelease: self.callback_release(MoveRequest(ControlComm.state.position,req.speed))
+			if autorelease: self.callback_move(MoveRequest(ControlComm.state.position,req.speed))
 		else:
 			rospy.logerr("WSG driver: no prior position information. Check gripper connection")
 			return MoveResponse(1)
+
+		self.reset_error()
 
 		if ControlComm.state.target_force:
 			if ControlComm.send_and_wait_for_fin("GRIP(" + str(ControlComm.state.target_force) + "," + str(req.width) + "," + str(req.speed) + ")"):
@@ -272,7 +283,16 @@ class Interface:
 	# Move the gripepr to a given position. Returns error = 0 if no error or error = 1 in case of any kind of error
 	# Interface is ROS message
 	def callback_move(self, req):
+
+		# Autorelease just in case something was gripped before
+		# if ControlComm.state.position:
+		#	if autorelease: self.callback_move(MoveRequest(ControlComm.state.position, 50)) # 50 mm/s because this callback can have empty speed
+		# else:
+		#	rospy.logerr("WSG driver: no prior position information. Check gripper connection")
+		# return MoveResponse(1)
+
 		self.reset_error()
+
 		if req.speed:
 			if ControlComm.send_and_wait_for_fin("MOVE(" + str(req.width) + "," + str(req.speed) + ")"):
 				return MoveResponse(ControlComm.state.get_error_code())
@@ -327,8 +347,7 @@ class Interface:
 	def publish_component_status(self, error = False):
 		cm_status = ComponentStatus()
 		if error:
-			#cm_status.status_id = ComponentStatus().ERROR # TO BE CLARIFY
-			cm_status.status_id = ComponentStatus().RUNNING
+			cm_status.status_id = ComponentStatus().ERROR 
 		else:
 			cm_status.status_id = ComponentStatus().RUNNING
 		self.pub_component_status.publish(cm_status)
