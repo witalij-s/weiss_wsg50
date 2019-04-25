@@ -42,7 +42,7 @@ class GripperState():
 	target_force = None			# Because we are using an older interface, first force has to be set as default value for next move, grasp etc. calls
 	target_acceleration = None 	# Same for acceleration
 
-	component_status_error = False
+	component_status_error = True 
 
 	event_fin = threading.Event() 		# Is set after receiving FIN answer (end of command)
 	event_no_error = threading.Event() 	# Is set when there is no error (this solves a race condition if robot is alreay in error when starting a command)
@@ -70,6 +70,15 @@ class ControlComm():
 	spinner_info = None			# Spinner function for publishing Ros information
 	interface = None			# ROS accesor object
 
+	# Start threads
+	@classmethod
+	def start(cls):
+		# Start spinner only once
+		if not cls.spinner:
+			cls.spinner = thread.start_new_thread(cls.spin, ())
+		if not cls.spinner_info: 
+			cls.spinner_info = thread.start_new_thread(cls.spin_info, ())
+
 	# Connection function, establish a connection with the gripper
 	@classmethod
 	def connect(cls):
@@ -81,11 +90,6 @@ class ControlComm():
 				cls.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 				cls.sock.settimeout(1) # 1 Second to consider connection lost
 				cls.sock.connect((ip, port))
-			# Start spinner only once
-			if not cls.spinner:
-				cls.spinner = thread.start_new_thread(cls.spin, ())
-			if not cls.spinner_info: 
-				cls.spinner_info = thread.start_new_thread(cls.spin_info, ())
 
 			rospy.loginfo("WSG Driver: connected to " + ip + ":" + str(port))
 			cls.startup() # Some initial configuration commands to the gripper
@@ -159,12 +163,10 @@ class ControlComm():
 			#except socket.timeout:
 			#	pass # Timeout is consider no error, because we don't want infinite wait at recv --> FOR CM
 			except Exception as e:
-				rospy.logerr("WSG driver error: " + str(e)) # TODO: reconnect here
-
-				# HERE SET COMPONENT STATUS AS ERROR -> state.component_error == TRUE
-				cls.state.component_status_error = True
-
-				cls.connect() # Try to stablish the connection again
+				if e.__class__ != AttributeError:
+					rospy.logerr("WSG driver error: " + str(e)) 
+				cls.state.component_status_error = True 	# Set component in error state
+				cls.connect() 								# Try to stablish the connection again
 
 	@classmethod
 	def spin_info(cls):
@@ -369,19 +371,22 @@ class Interface:
 
 	# Publish gripper status topic
 	def publish_gripper_status(self, state):
-		status_msg = Status()
-		if state.state: 	status_msg.status = str(state.state)
-		if state.position: 	status_msg.width = state.position
-		if state.speed:		status_msg.speed = state.speed
-		if state.force:		status_msg.force = state.force
-		self.pub_gripper_status.publish(status_msg)
+		try:
+			status_msg = Status()
+			if state.state: 	status_msg.status = str(state.state)
+			if state.position: 	status_msg.width = state.position
+			if state.speed:		status_msg.speed = state.speed
+			if state.force:		status_msg.force = state.force
+			self.pub_gripper_status.publish(status_msg)
+		except:
+			pass
 
 
 if __name__ == '__main__':
-	rospy.init_node('wsg50_driver') # Initialise ROS node
-	while not ControlComm.connect():
-		if rospy.is_shutdown(): sys.exit()
-	interface = Interface() # Start ROS interface as independent class
-	ControlComm.set_interface(interface)
-
-	rospy.spin() 			# Keep ROS running
+	rospy.init_node('wsg50_driver') 		# Initialise ROS node
+	interface = Interface() 				# Start ROS interface as independent class
+	ControlComm.set_interface(interface)	# Attach the ros interface to the communication class
+	ControlComm.start()
+	#while not ControlComm.connect():
+	#	if rospy.is_shutdown(): sys.exit()	# Loop until connection
+	rospy.spin() 							# Keep ROS running
