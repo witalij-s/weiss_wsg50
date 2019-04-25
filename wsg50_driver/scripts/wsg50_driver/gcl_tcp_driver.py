@@ -81,22 +81,33 @@ class ControlComm():
 				cls.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 				cls.sock.settimeout(1) # 1 Second to consider connection lost
 				cls.sock.connect((ip, port))
-
-			# HERE SET COMPONENT STATUS AS OK -> state.component_error == TRUE
-			cls.state.component_status_error = False
-
 			# Start spinner only once
 			if not cls.spinner:
 				cls.spinner = thread.start_new_thread(cls.spin, ())
 			if not cls.spinner_info: 
 				cls.spinner_info = thread.start_new_thread(cls.spin_info, ())
+
 			rospy.loginfo("WSG Driver: connected to " + ip + ":" + str(port))
+			cls.startup() # Some initial configuration commands to the gripper
+			rospy.loginfo("WSG Driver: ready to work")
+
 			return True
 		except Exception as e:
 			rospy.logerr("WSG driver error: " + str(e))
 			cls.sock = None
 			rospy.loginfo("WSG Driver: connection error.")
+			# Sleep 3 seconds to wait
+			time.sleep(3)
 			return False
+
+	@classmethod
+	def startup(cls): # Activate auto receiving position, speed, force and gripstate. See gripper documentation for more information
+		str_rate = str(rate_hz) # 50 Hz by default
+		cls.send_without_response("FSACK()")
+		cls.send_without_response("AUTOSEND(\"POS\"," + str_rate + ")")
+		cls.send_without_response("AUTOSEND(\"SPEED\"," + str_rate + ")")
+		cls.send_without_response("AUTOSEND(\"FORCE\"," + str_rate + ")")
+		cls.send_without_response("AUTOSEND(\"GRIPSTATE\"," + str_rate + ")")
 
 	# Asynchronous main loop
 	@classmethod
@@ -113,7 +124,10 @@ class ControlComm():
 					# Answers received, using regex (regular expresions)
 					# ---------------------------------------------------------------------------------
 					r, v = cls.parse_command(packet, "@POS=float") 		# Asynchronous update from pose
-					if r: cls.state.position = float(v[0])
+					if r: 
+						cls.state.position = float(v[0])
+						# After a first correct information received from the gripper, we consider that it is working ok
+						cls.state.component_status_error = False
 					# ---------------------------------------------------------------------------------
 					r, v = cls.parse_command(packet, "@SPEED=float") 	# Asynchronous update from speed
 					if r: cls.state.speed = float(v[0])
@@ -174,8 +188,9 @@ class ControlComm():
 				return True
 			except Exception as e:
 				rospy.logerr("WSG driver error: " + str(e))
-				cls.connect() # try to stablish the connection again
-				return False
+		# connect cannot be inside a with socklock statement
+		cls.connect() # try to stablish the connection again
+		return False
 
 	# This class sends the command and waits until the given answer is received or error
 	# Returns True if answer is received, False if error
@@ -362,19 +377,10 @@ class Interface:
 		self.pub_gripper_status.publish(status_msg)
 
 
-def startup(): # Activate auto receiving position, speed, force and gripstate. See gripper documentation for more information
-	str_rate = str(rate_hz) # 50 Hz by default
-	ControlComm.send_without_response("FSACK()")
-	ControlComm.send_without_response("AUTOSEND(\"POS\"," + str_rate + ")")
-	ControlComm.send_without_response("AUTOSEND(\"SPEED\"," + str_rate + ")")
-	ControlComm.send_without_response("AUTOSEND(\"FORCE\"," + str_rate + ")")
-	ControlComm.send_without_response("AUTOSEND(\"GRIPSTATE\"," + str_rate + ")")
-
 if __name__ == '__main__':
 	rospy.init_node('wsg50_driver') # Initialise ROS node
 	while not ControlComm.connect():
 		if rospy.is_shutdown(): sys.exit()
-	startup()				# Some initial configuration commands to the gripper
 	interface = Interface() # Start ROS interface as independent class
 	ControlComm.set_interface(interface)
 
