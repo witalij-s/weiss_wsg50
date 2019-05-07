@@ -1,0 +1,5 @@
+---
+uint8 state
+# 0 iddle
+# 4 part grasped
+# 3 part lost

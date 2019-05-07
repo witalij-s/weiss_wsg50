@@ -243,6 +243,7 @@ class Interface:
 		self.srv_stop 				= rospy.Service('~stop', 				Empty, 	self.callback_stop)
 		self.srv_set_acceleration 	= rospy.Service('~set_acceleration', 	Conf, 	self.callback_set_acceleration)
 		self.srv_set_force 			= rospy.Service('~set_force', 			Conf, 	self.callback_set_force)
+		self.srv_get_state			= rospy.Service('~get_state',			State,	self.callback_get_state)
 		self.pub_component_status 	= rospy.Publisher('~component/status', 	ComponentStatus, queue_size=1, latch=True) # d&b component status topic
 		self.pub_gripper_status 	= rospy.Publisher('~status',			Status,	queue_size=1)
 
@@ -359,6 +360,13 @@ class Interface:
 	def callback_set_force(self, req):
 		ControlComm.state.target_force = req.val
 		return ConfResponse(0)
+
+	# Get the current internal status (0 iddle, 4 part grasped, 3 part lost, etc)
+	def callback_get_state(self, req):
+		if ControlComm.state.state:
+			return StateResponse(int(ControlComm.state.state))
+		else:
+			return StateResponse(0) # iddle
 
 	# Publish drag&bot component status topic to indicate the gripper is in a good shape
 	def publish_component_status(self, error = False):
